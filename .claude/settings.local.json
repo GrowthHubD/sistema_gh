@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create vite@latest frontend -- --template react-ts --yes)",
+      "Bash(npm install)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm run build)",
+      "Bash(npx wrangler d1 migrations apply ivyngard-db --local)",
+      "Bash(npx wrangler d1 execute ivyngard-db --local --command \"SELECT name FROM sqlite_master WHERE type=''table'';\")",
+      "Bash(npm uninstall @anthropic-ai/sdk)",
+      "Bash(npm install openai)",
+      "Bash(git init)",
+      "Bash(git config user.name \"Yuugenbrose\")",
+      "Bash(git config user.email \"hirukadoomed@proton.me\")",
+      "Bash(git remote add origin https://github.com/Yuugenbrose/ivyngard.git)",
+      "Bash(git add .)",
+      "Bash(git commit:*)",
+      "Bash(git branch -M main)",
+      "Bash(git push origin main --force)",
+      "Bash(git remote set-url origin \"https://Yuugenbrose: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@github.com/Yuugenbrose/ivyngard.git\")",
+      "Bash(git remote set-url origin \"https://github.com/Yuugenbrose/ivyngard.git\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\barreto\\.claude\\projects\\c--Users-barreto-Documents-Davi-VSWork-Ivyngard",
+      "C:\\Users\\barreto\\Documents\\Davi\\VSWork\\Ivyngard\\.github"
+    ]
+  }
+}
