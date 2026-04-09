@@ -1,0 +1,68 @@
+﻿node.exe : C:\Users\barret
+o\Documents\Davi\VSWork\Gr
+owth Hub Manager\node_modu
+les\.pnpm\@neondatabase+se
+rverless@0.10.4\node_modul
+es\@neondatabase\serverles
+s\index.js:1559
+At C:\Program 
+Files\nodejs\npx.ps1:29 
+char:3
++   & $NODE_EXE 
+$NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (C  
+  :\Users\barret...s\in   
+ dex.js:1559:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+let{status:W}=te;if(W===40
+0){let H=await 
+te.json(),Ce=new 
+he(H.message);for(let ve 
+of Wc)
+                          
+                          
+  ^
+
+NeonDbError: syntax error 
+at or near ":"
+    at execute (C:\Users\b
+arreto\Documents\Davi\VSWo
+rk\Growth Hub Manager\node
+_modules\.pnpm\@neondataba
+se+serverless@0.10.4\node_
+modules\@neondatabase\serv
+erless\index.js:1559:55)
+    at process.processTick
+sAndRejections (node:inter
+nal/process/task_queues:10
+5:5) {
+  severity: 'ERROR',
+  code: '42601',
+  detail: undefined,
+  hint: undefined,
+  position: '72',
+  internalPosition: 
+undefined,
+  internalQuery: 
+undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'scan.l',
+  line: '1244',
+  routine: 
+'scanner_yyerror',
+  sourceError: undefined
+}
+
+Node.js v22.14.0

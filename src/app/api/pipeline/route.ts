@@ -1,0 +1,69 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { checkPermission } from "@/lib/permissions";
+import { db } from "@/lib/db";
+import { pipelineStage, lead, leadTag, leadTagAssignment } from "@/lib/db/schema/pipeline";
+import { user } from "@/lib/db/schema/users";
+import { eq, asc, desc } from "drizzle-orm";
+import type { UserRole } from "@/types";
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    const userRole = ((session.user as { role?: string }).role ?? "operational") as UserRole;
+    const canView = await checkPermission(session.user.id, userRole, "pipeline", "view");
+    if (!canView) {
+      return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+    }
+
+    const [stages, leads, tags, allUsers] = await Promise.all([
+      db.select().from(pipelineStage).orderBy(asc(pipelineStage.order)),
+      db
+        .select({
+          id: lead.id,
+          name: lead.name,
+          companyName: lead.companyName,
+          email: lead.email,
+          phone: lead.phone,
+          stageId: lead.stageId,
+          source: lead.source,
+          estimatedValue: lead.estimatedValue,
+          notes: lead.notes,
+          assignedTo: lead.assignedTo,
+          createdAt: lead.createdAt,
+          updatedAt: lead.updatedAt,
+          assigneeName: user.name,
+        })
+        .from(lead)
+        .leftJoin(user, eq(lead.assignedTo, user.id))
+        .orderBy(desc(lead.createdAt)),
+      db
+        .select({
+          leadId: leadTagAssignment.leadId,
+          tagId: leadTagAssignment.tagId,
+          tagName: leadTag.name,
+          tagColor: leadTag.color,
+        })
+        .from(leadTagAssignment)
+        .innerJoin(leadTag, eq(leadTagAssignment.tagId, leadTag.id)),
+      db.select({ id: user.id, name: user.name }).from(user).where(eq(user.isActive, true)),
+    ]);
+
+    // Attach tags to leads
+    const leadsWithTags = leads.map((l) => ({
+      ...l,
+      tags: tags
+        .filter((t) => t.leadId === l.id)
+        .map((t) => ({ id: t.tagId, name: t.tagName, color: t.tagColor })),
+    }));
+
+    return NextResponse.json({ stages, leads: leadsWithTags, users: allUsers });
+  } catch (error) {
+    console.error("[PIPELINE] GET failed:", { operation: "list" });
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  }
+}

@@ -1,0 +1,68 @@
+﻿Seeding database...
+
+node.exe :   [FAIL] 
+davi@growthhub.com.br: 
+Failed query: select 
+"id", "name", "email", 
+"emailVerified", "image", 
+"role", "jobTitle", 
+"phone", "isActive", 
+"createdAt", "updatedAt" 
+from "user" where 
+"user"."email" = $1
+At C:\Program 
+Files\nodejs\npx.ps1:29 
+char:3
++   & $NODE_EXE 
+$NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (   
+   [FAIL] davi@g...r"."   
+ email" = $1:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+params: 
+davi@growthhub.com.br
+  [FAIL] 
+gerente@growthhub.com.br: 
+Failed query: select 
+"id", "name", "email", 
+"emailVerified", "image", 
+"role", "jobTitle", 
+"phone", "isActive", 
+"createdAt", "updatedAt" 
+from "user" where 
+"user"."email" = $1
+params: 
+gerente@growthhub.com.br
+  [FAIL] operacional@growt
+hhub.com.br: Failed 
+query: select "id", 
+"name", "email", 
+"emailVerified", "image", 
+"role", "jobTitle", 
+"phone", "isActive", 
+"createdAt", "updatedAt" 
+from "user" where 
+"user"."email" = $1
+params: operacional@growth
+hub.com.br
+
+  [OK] Stage: Sem Atendimento
+  [OK] Stage: Em Atendimento
+  [OK] Stage: Reunioes
+  [OK] Stage: Propostas
+  [OK] Stage: Follow Up
+  [OK] Stage: Ganho
+  [OK] Stage: Perdido
+
+  [OK] Column: To Do
+  [OK] Column: In Progress
+  [OK] Column: Done
+
+Seed completed!
