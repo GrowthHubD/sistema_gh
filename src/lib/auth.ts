@@ -29,7 +29,6 @@ export const auth = betterAuth({
         type: "string",
         required: false,
         input: false,
-        fieldName: "job_title",
       },
       phone: {
         type: "string",
@@ -41,7 +40,6 @@ export const auth = betterAuth({
         required: false,
         defaultValue: true,
         input: false,
-        fieldName: "is_active",
       },
     },
   },

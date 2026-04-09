@@ -176,7 +176,7 @@ export function Sidebar({
       <aside
         className={cn(
           "hidden lg:flex lg:flex-col fixed left-0 top-0 bottom-0 z-30",
-          "bg-surface border-r border-border transition-all duration-200"
+          "bg-surface/80 backdrop-blur-xl border-r border-border transition-all duration-200"
         )}
         style={{
           width: collapsed
@@ -191,7 +191,7 @@ export function Sidebar({
       <aside
         className={cn(
           "lg:hidden fixed left-0 top-0 bottom-0 z-50",
-          "bg-surface border-r border-border w-[280px]",
+          "bg-surface/90 backdrop-blur-xl border-r border-border w-[280px]",
           "transition-transform duration-200",
           mobileOpen
             ? "translate-x-0 animate-slide-in-left"

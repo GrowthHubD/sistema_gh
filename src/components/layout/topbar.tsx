@@ -2,12 +2,10 @@
 
 import { signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import {
-  Bell,
-  LogOut,
-  Menu,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, LogOut, Menu } from "lucide-react";
 import { Breadcrumbs } from "./breadcrumbs";
+import { cn } from "@/lib/utils";
 
 interface TopbarProps {
   userName: string;
@@ -17,6 +15,30 @@ interface TopbarProps {
 
 export function Topbar({ userName, userImage, onMenuClick }: TopbarProps) {
   const router = useRouter();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchUnread() {
+      try {
+        const res = await fetch("/api/notificacoes?unread=true");
+        if (res.ok && mounted) {
+          const data = await res.json();
+          setUnreadCount(data.unreadCount ?? 0);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30_000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   async function handleSignOut() {
     await signOut();
@@ -32,10 +54,9 @@ export function Topbar({ userName, userImage, onMenuClick }: TopbarProps) {
     .toUpperCase();
 
   return (
-    <header className="fixed top-0 right-0 left-0 lg:left-[var(--sidebar-width)] z-20 h-[var(--topbar-height)] bg-surface/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 lg:px-6 transition-all duration-200">
+    <header className="sticky top-0 z-20 h-[var(--topbar-height)] bg-surface/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 lg:px-6 shrink-0">
       {/* Left side */}
       <div className="flex items-center gap-3">
-        {/* Mobile menu toggle */}
         <button
           onClick={onMenuClick}
           className="lg:hidden text-muted hover:text-foreground transition-colors cursor-pointer"
@@ -43,20 +64,26 @@ export function Topbar({ userName, userImage, onMenuClick }: TopbarProps) {
         >
           <Menu className="w-5 h-5" />
         </button>
-
         <Breadcrumbs />
       </div>
 
       {/* Right side */}
       <div className="flex items-center gap-2">
-        {/* Notifications */}
+        {/* Notifications bell with badge */}
         <button
           onClick={() => router.push("/notificacoes")}
           className="relative p-2 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 transition-colors duration-200 cursor-pointer"
           aria-label="Notificações"
         >
           <Bell className="w-5 h-5" />
-          {/* Badge placeholder — will be dynamic when notifications module is built */}
+          {unreadCount > 0 && (
+            <span className={cn(
+              "absolute top-1 right-1 flex items-center justify-center",
+              "w-4 h-4 rounded-full bg-error text-white text-[10px] font-bold leading-none"
+            )}>
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </button>
 
         {/* User avatar + logout */}
@@ -64,20 +91,14 @@ export function Topbar({ userName, userImage, onMenuClick }: TopbarProps) {
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-semibold shrink-0">
             {userImage ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={userImage}
-                alt={userName}
-                className="w-8 h-8 rounded-full object-cover"
-              />
+              <img src={userImage} alt={userName} className="w-8 h-8 rounded-full object-cover" />
             ) : (
               initials
             )}
           </div>
-
           <span className="hidden sm:block text-sm text-foreground font-medium max-w-[120px] truncate">
             {userName}
           </span>
-
           <button
             onClick={handleSignOut}
             className="p-2 rounded-lg text-muted hover:text-error hover:bg-error/10 transition-colors duration-200 cursor-pointer"

@@ -18,7 +18,19 @@
       "Bash(git branch -M main)",
       "Bash(git push origin main --force)",
       "Bash(git remote set-url origin \"https://Yuugenbrose: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@github.com/Yuugenbrose/ivyngard.git\")",
-      "Bash(git remote set-url origin \"https://github.com/Yuugenbrose/ivyngard.git\")"
+      "Bash(git remote set-url origin \"https://github.com/Yuugenbrose/ivyngard.git\")",
+      "Bash(pnpm tsc:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(echo \"exit: $?\")",
+      "Read(//tmp/**)",
+      "Bash(python3 \"c:/Users/barreto/Documents/Davi/VSWork/Growth Hub Manager/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"CRM pipeline kanban sales dark SaaS compact\" --design-system -p \"Growth Hub Pipeline\")",
+      "Bash(python3.exe \"c:/Users/barreto/Documents/Davi/VSWork/Growth Hub Manager/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"CRM pipeline kanban sales dark SaaS compact\" --design-system -p \"Growth Hub Pipeline\")",
+      "Bash(where python:*)",
+      "Bash(where py:*)",
+      "Bash(C:/Python313/python.exe \"c:/Users/barreto/Documents/Davi/VSWork/Growth Hub Manager/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"CRM pipeline kanban sales dark SaaS compact\" --design-system -p \"Growth Hub Pipeline\")",
+      "Bash(C:/Python313/python.exe \"c:/Users/barreto/Documents/Davi/VSWork/Growth Hub Manager/.claude/skills/ui-ux-pro-max/scripts/search.py\" \"kanban card compact dense information hierarchy\" --domain ux)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(pnpm add:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\barreto\\.claude\\projects\\c--Users-barreto-Documents-Davi-VSWork-Ivyngard",

@@ -42,6 +42,7 @@ next-env.d.ts
 
 # Cloudflare Workers
 .open-next/
+.dev.vars
 .wrangler/
 
 # Supabase

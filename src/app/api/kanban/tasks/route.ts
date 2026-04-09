@@ -1,0 +1,61 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { auth } from "@/lib/auth";
+import { checkPermission } from "@/lib/permissions";
+import { db } from "@/lib/db";
+import { kanbanTask, kanbanColumn } from "@/lib/db/schema/kanban";
+import { eq } from "drizzle-orm";
+import type { UserRole } from "@/types";
+
+const createSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().optional().nullable(),
+  columnId: z.string().uuid(),
+  assignedTo: z.string().min(1),
+  dueDate: z.string().optional().nullable(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+});
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+    const userRole = ((session.user as { role?: string }).role ?? "operational") as UserRole;
+    const canEdit = await checkPermission(session.user.id, userRole, "kanban", "edit");
+    if (!canEdit) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+
+    const body = await request.json();
+    const parsed = createSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const d = parsed.data;
+
+    const [col] = await db
+      .select({ id: kanbanColumn.id })
+      .from(kanbanColumn)
+      .where(eq(kanbanColumn.id, d.columnId))
+      .limit(1);
+    if (!col) return NextResponse.json({ error: "Coluna não encontrada" }, { status: 404 });
+
+    const [task] = await db
+      .insert(kanbanTask)
+      .values({
+        title: d.title,
+        description: d.description ?? null,
+        columnId: d.columnId,
+        assignedTo: d.assignedTo,
+        dueDate: d.dueDate ?? null,
+        priority: d.priority,
+        createdBy: session.user.id,
+      })
+      .returning();
+
+    return NextResponse.json({ task }, { status: 201 });
+  } catch {
+    console.error("[KANBAN] POST task failed:", { operation: "create" });
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  }
+}

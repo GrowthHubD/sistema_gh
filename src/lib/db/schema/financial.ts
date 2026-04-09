@@ -52,6 +52,7 @@ export const financialConfig = pgTable("financial_config", {
   companyReservePercentage: numeric("company_reserve_percentage", { precision: 5, scale: 2 })
     .notNull()
     .default("10.00"),
+  revenueGoal: numeric("revenue_goal", { precision: 12, scale: 2 }),
   updatedBy: text("updated_by")
     .notNull()
     .references(() => user.id),

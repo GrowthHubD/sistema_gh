@@ -1,0 +1,114 @@
+﻿Seeding database...
+
+node.exe : [2m2026-03-29T
+19:32:36.587Z[0m 
+[31mERROR[0m 
+[1m[Better Auth]:[0m 
+Failed to create user 
+[BetterAuthError: The 
+field "is_active" does 
+not exist in the "user" 
+Drizzle schema. Please 
+update your drizzle 
+schema or re-generate 
+using "npx auth@latest 
+generate".]
+At C:\Program 
+Files\nodejs\npx.ps1:29 
+char:3
++   & $NODE_EXE 
+$NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (  
+  [2m2026-03-29T...est    
+ generate".]:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+[2m2026-03-29T19:32:36.58
+9Z[0m [31mERROR[0m 
+[1m[Better Auth]:[0m 
+Failed to create user 
+[BetterAuthError: The 
+field "is_active" does 
+not exist in the "user" 
+Drizzle schema. Please 
+update your drizzle 
+schema or re-generate 
+using "npx auth@latest 
+generate".]
+  [FAIL] 
+davi@growthhub.com.br: 
+Failed to create user
+[2m2026-03-29T19:32:39.11
+9Z[0m [31mERROR[0m 
+[1m[Better Auth]:[0m 
+Failed to create user 
+[BetterAuthError: The 
+field "is_active" does 
+not exist in the "user" 
+Drizzle schema. Please 
+update your drizzle 
+schema or re-generate 
+using "npx auth@latest 
+generate".]
+[2m2026-03-29T19:32:39.11
+9Z[0m [31mERROR[0m 
+[1m[Better Auth]:[0m 
+Failed to create user 
+[BetterAuthError: The 
+field "is_active" does 
+not exist in the "user" 
+Drizzle schema. Please 
+update your drizzle 
+schema or re-generate 
+using "npx auth@latest 
+generate".]
+  [FAIL] 
+gerente@growthhub.com.br: 
+Failed to create user
+[2m2026-03-29T19:32:41.33
+1Z[0m [31mERROR[0m 
+[1m[Better Auth]:[0m 
+Failed to create user 
+[BetterAuthError: The 
+field "is_active" does 
+not exist in the "user" 
+Drizzle schema. Please 
+update your drizzle 
+schema or re-generate 
+using "npx auth@latest 
+generate".]
+[2m2026-03-29T19:32:41.33
+2Z[0m [31mERROR[0m 
+[1m[Better Auth]:[0m 
+Failed to create user 
+[BetterAuthError: The 
+field "is_active" does 
+not exist in the "user" 
+Drizzle schema. Please 
+update your drizzle 
+schema or re-generate 
+using "npx auth@latest 
+generate".]
+  [FAIL] operacional@growt
+hhub.com.br: Failed to 
+create user
+
+  [OK] Stage: Sem Atendimento
+  [OK] Stage: Em Atendimento
+  [OK] Stage: Reunioes
+  [OK] Stage: Propostas
+  [OK] Stage: Follow Up
+  [OK] Stage: Ganho
+  [OK] Stage: Perdido
+
+  [OK] Column: To Do
+  [OK] Column: In Progress
+  [OK] Column: Done
+
+Seed completed!

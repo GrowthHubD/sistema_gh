@@ -18,9 +18,9 @@ export const user = pgTable("user", {
   emailVerified: boolean("emailVerified").notNull().default(false),
   image: text("image"),
   role: text("role").notNull().default("operational"), // 'partner', 'manager', 'operational'
-  jobTitle: text("job_title"), // 'gestor_trafego', 'gestor_automacao', 'social_media', etc.
+  jobTitle: text("jobTitle"),
   phone: text("phone"),
-  isActive: boolean("is_active").notNull().default(true),
+  isActive: boolean("isActive").notNull().default(true),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
