@@ -1,3 +1,4 @@
+export const runtime = "edge";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
