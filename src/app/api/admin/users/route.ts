@@ -73,20 +73,13 @@ export async function POST(request: NextRequest) {
 
     // Hash password using the same algorithm as better-auth:
     // scrypt with N=16384, r=16, p=1, dkLen=64 — stored as "hexsalt:hexkey"
-    const { scrypt: nodeScrypt } = await import("node:crypto");
-
+    // Using scrypt-js (pure JS) instead of node:crypto for Edge Runtime compatibility.
+    const { scrypt } = await import("scrypt-js");
+    const enc = new TextEncoder();
     const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-    const salt = Buffer.from(saltBytes).toString("hex");
-    const keyBuf = await new Promise<Buffer>((resolve, reject) => {
-      nodeScrypt(
-        password.normalize("NFKC"),
-        salt,
-        64,
-        { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 },
-        (err, key) => (err ? reject(err) : resolve(key))
-      );
-    });
-    const hashedPassword = `${salt}:${keyBuf.toString("hex")}`;
+    const salt = Array.from(saltBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+    const keyBytes = await scrypt(enc.encode(password.normalize("NFKC")), enc.encode(salt), 16384, 16, 1, 64);
+    const hashedPassword = `${salt}:${Array.from(keyBytes).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
 
     // Generate IDs the same way better-auth does (random base36-like string)
     const newUserId = crypto.randomUUID().replace(/-/g, "");
