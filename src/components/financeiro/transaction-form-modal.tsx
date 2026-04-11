@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
+import { Select } from "@/components/ui/select";
 
 interface TxFormData {
   name: string;
@@ -83,8 +84,10 @@ export function TransactionFormModal({ open, onClose, onSuccess, initialData, mo
   };
 
   const set = (field: keyof TxFormData) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => setForm((p) => ({ ...p, [field]: e.target.value }));
+  const setField = (field: keyof TxFormData) => (val: string) =>
+    setForm((p) => ({ ...p, [field]: val }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -109,11 +112,10 @@ export function TransactionFormModal({ open, onClose, onSuccess, initialData, mo
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-label text-muted block mb-1.5">Tipo <span className="text-error">*</span></label>
-              <select value={form.type} onChange={set("type")}
-                className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-                <option value="income">Receita</option>
-                <option value="expense">Despesa</option>
-              </select>
+              <Select value={form.type} onChange={setField("type")} options={[
+                { value: "income", label: "Receita" },
+                { value: "expense", label: "Despesa" },
+              ]} />
             </div>
             <div>
               <label className="text-label text-muted block mb-1.5">Valor (R$) <span className="text-error">*</span></label>
@@ -126,19 +128,15 @@ export function TransactionFormModal({ open, onClose, onSuccess, initialData, mo
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-label text-muted block mb-1.5">Categoria</label>
-              <select value={form.category} onChange={set("category")}
-                className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-                {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
+              <Select value={form.category} onChange={setField("category")} options={CATEGORIES} />
             </div>
             <div>
               <label className="text-label text-muted block mb-1.5">Recorrência</label>
-              <select value={form.billingType} onChange={set("billingType")}
-                className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-                <option value="monthly">Mensal</option>
-                <option value="annual">Anual</option>
-                <option value="one_time">Único</option>
-              </select>
+              <Select value={form.billingType} onChange={setField("billingType")} options={[
+                { value: "monthly", label: "Mensal" },
+                { value: "annual", label: "Anual" },
+                { value: "one_time", label: "Único" },
+              ]} />
             </div>
           </div>
 
@@ -157,12 +155,11 @@ export function TransactionFormModal({ open, onClose, onSuccess, initialData, mo
 
           <div>
             <label className="text-label text-muted block mb-1.5">Status</label>
-            <select value={form.status} onChange={set("status")}
-              className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-              <option value="paid">Pago</option>
-              <option value="pending">Pendente</option>
-              <option value="overdue">Atrasado</option>
-            </select>
+            <Select value={form.status} onChange={setField("status")} options={[
+              { value: "paid", label: "Pago" },
+              { value: "pending", label: "Pendente" },
+              { value: "overdue", label: "Atrasado" },
+            ]} />
           </div>
 
           <div>

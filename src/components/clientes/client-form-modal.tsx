@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Plus } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -34,6 +34,11 @@ const EMPTY_FORM: ClientFormData = {
   notes: "",
 };
 
+// Split comma-separated responsible names into an array
+function parseNames(raw: string): string[] {
+  return raw.split(",").map((n) => n.trim()).filter(Boolean);
+}
+
 export function ClientFormModal({
   open,
   onClose,
@@ -46,11 +51,31 @@ export function ClientFormModal({
     ...initialData,
   });
   const [loading, setLoading] = useState(false);
+  const [nameInput, setNameInput] = useState("");
 
   if (!open) return null;
 
+  const names = parseNames(form.responsibleName);
+
+  const addName = () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed || names.includes(trimmed)) return;
+    const updated = [...names, trimmed].join(", ");
+    setForm((p) => ({ ...p, responsibleName: updated }));
+    setNameInput("");
+  };
+
+  const removeName = (name: string) => {
+    const updated = names.filter((n) => n !== name).join(", ");
+    setForm((p) => ({ ...p, responsibleName: updated }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (names.length === 0) {
+      toast.error("Adicione pelo menos um responsável.");
+      return;
+    }
     setLoading(true);
 
     try {
@@ -131,18 +156,57 @@ export function ClientFormModal({
               />
             </div>
 
-            <div>
+            <div className="sm:col-span-2">
               <label className="text-label text-muted block mb-1.5">
-                Responsável <span className="text-error">*</span>
+                Responsáveis <span className="text-error">*</span>
               </label>
-              <input
-                type="text"
-                value={form.responsibleName}
-                onChange={set("responsibleName")}
-                required
-                placeholder="Nome do contato"
-                className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
-              />
+              {/* Chip list */}
+              {names.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {names.map((n) => (
+                    <span
+                      key={n}
+                      className="flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full"
+                    >
+                      {n}
+                      <button
+                        type="button"
+                        onClick={() => removeName(n)}
+                        className="hover:text-error transition-colors cursor-pointer ml-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* Hidden required field */}
+              <input type="hidden" value={form.responsibleName} required />
+              {/* Add input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addName(); } }}
+                  placeholder="Digite um nome e pressione Enter ou +"
+                  className={cn(
+                    "flex-1 bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary transition-colors",
+                    names.length === 0 && "border-error/40"
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={addName}
+                  disabled={!nameInput.trim()}
+                  className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-40 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+              {names.length === 0 && (
+                <p className="text-xs text-muted mt-1">Adicione pelo menos um responsável</p>
+              )}
             </div>
 
             <div>

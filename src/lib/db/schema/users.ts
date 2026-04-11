@@ -112,3 +112,29 @@ export const modulePermissionRelations = relations(modulePermission, ({ one }) =
     references: [user.id],
   }),
 }));
+
+// ============================================
+// GOOGLE INTEGRATION (per-user Calendar OAuth)
+// ============================================
+
+export const userGoogleIntegration = pgTable("user_google_integration", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: "cascade" }),
+  googleEmail: text("google_email"),
+  googleRefreshToken: text("google_refresh_token").notNull(),
+  googleCalendarId: text("google_calendar_id").notNull().default("primary"),
+  googleAccessToken: text("google_access_token"),
+  googleAccessTokenExpiresAt: timestamp("google_access_token_expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const userGoogleIntegrationRelations = relations(userGoogleIntegration, ({ one }) => ({
+  user: one(user, {
+    fields: [userGoogleIntegration.userId],
+    references: [user.id],
+  }),
+}));

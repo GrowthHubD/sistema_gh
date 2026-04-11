@@ -5,8 +5,10 @@ import { checkPermission } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { contract } from "@/lib/db/schema/contracts";
 import { client } from "@/lib/db/schema/clients";
+import { financialTransaction } from "@/lib/db/schema/financial";
 import { eq } from "drizzle-orm";
 import type { UserRole } from "@/types";
+import { format } from "date-fns";
 
 const updateContractSchema = z.object({
   companyName: z.string().min(1).max(255).optional(),
@@ -112,6 +114,13 @@ export async function PATCH(
     if (data.driveFileId !== undefined) updates.driveFileId = data.driveFileId;
     if (data.notes !== undefined) updates.notes = data.notes;
 
+    // Fetch current state before update to detect status transition
+    const [before] = await db
+      .select({ status: contract.status, monthlyValue: contract.monthlyValue, clientId: contract.clientId, companyName: contract.companyName, startDate: contract.startDate })
+      .from(contract)
+      .where(eq(contract.id, id))
+      .limit(1);
+
     const [updated] = await db
       .update(contract)
       .set(updates)
@@ -120,6 +129,35 @@ export async function PATCH(
 
     if (!updated) {
       return NextResponse.json({ error: "Contrato não encontrado" }, { status: 404 });
+    }
+
+    // ── Auto-create pending financial transaction when activated ─────────
+    const activating = data.status === "active" && before?.status !== "active";
+    if (activating) {
+      try {
+        const monthly = Number(updated.monthlyValue ?? 0);
+        if (monthly > 0) {
+          const now = new Date();
+          const transactionDate = format(now, "yyyy-MM-dd");
+          const dueDate = updated.startDate > transactionDate ? updated.startDate : transactionDate;
+          await db.insert(financialTransaction).values({
+            name: `Mensalidade — ${updated.companyName}`,
+            type: "income",
+            category: "cliente",
+            amount: String(monthly),
+            transactionDate,
+            billingType: "monthly",
+            status: "pending",
+            dueDate,
+            contractId: updated.id,
+            clientId: updated.clientId,
+            notes: "Criado automaticamente ao ativar contrato.",
+            createdBy: session.user.id,
+          });
+        }
+      } catch {
+        // Best-effort
+      }
     }
 
     return NextResponse.json({ contract: updated });

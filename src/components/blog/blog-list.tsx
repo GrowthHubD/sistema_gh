@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, BookOpen, Folder, FileText, Edit, Trash2, Loader2, Search, Eye, EyeOff } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -58,6 +59,7 @@ export function BlogList({ initialCategories, initialPosts, canEdit, canDelete, 
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [viewingPost, setViewingPost] = useState<Post & { content?: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const filtered = posts.filter((p) => {
     const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase());
@@ -70,12 +72,15 @@ export function BlogList({ initialCategories, initialPosts, canEdit, canDelete, 
   const subCategories = (parentId: string) => categories.filter((c) => c.parentId === parentId);
   const postsInCategory = (catId: string) => filtered.filter((p) => p.categoryId === catId);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Excluir este post?")) return;
-    setDeletingId(id);
+  const handleDelete = (id: string) => setPendingDelete(id);
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setPendingDelete(null);
+    setDeletingId(pendingDelete);
     try {
-      const res = await fetch(`/api/blog/posts/${id}`, { method: "DELETE" });
-      if (res.ok) setPosts((p) => p.filter((post) => post.id !== id));
+      const res = await fetch(`/api/blog/posts/${pendingDelete}`, { method: "DELETE" });
+      if (res.ok) setPosts((p) => p.filter((post) => post.id !== pendingDelete));
     } finally {
       setDeletingId(null);
     }
@@ -357,6 +362,14 @@ export function BlogList({ initialCategories, initialPosts, canEdit, canDelete, 
           onEdit={canEdit ? () => { setEditingPost(viewingPost); setViewingPost(null); setModalOpen(true); } : undefined}
         />
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Excluir post"
+        message="Tem certeza que deseja excluir este post? Esta ação não pode ser desfeita."
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </>
   );
 }

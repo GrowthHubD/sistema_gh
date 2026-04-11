@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { checkPermission } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { pipelineStage } from "@/lib/db/schema/pipeline";
-import { sql } from "drizzle-orm";
+import { sql, eq, ne } from "drizzle-orm";
 import type { UserRole } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -29,4 +29,34 @@ export async function POST(request: NextRequest) {
     .returning();
 
   return NextResponse.json(stage, { status: 201 });
+}
+
+export async function PATCH(request: NextRequest) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+  const userRole = ((session.user as { role?: string }).role ?? "operational") as UserRole;
+  const canEdit = await checkPermission(session.user.id, userRole, "pipeline", "edit");
+  if (!canEdit) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+
+  const { id, isWon, name, color } = await request.json();
+  if (!id) return NextResponse.json({ error: "ID obrigatório" }, { status: 400 });
+
+  // Only one stage can be the "won" stage — clear others first
+  if (isWon === true) {
+    await db.update(pipelineStage).set({ isWon: false }).where(ne(pipelineStage.id, id));
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (typeof isWon === "boolean") updates.isWon = isWon;
+  if (typeof name === "string" && name.trim()) updates.name = name.trim();
+  if (color !== undefined) updates.color = color;
+
+  const [updated] = await db
+    .update(pipelineStage)
+    .set(updates)
+    .where(eq(pipelineStage.id, id))
+    .returning();
+
+  return NextResponse.json(updated);
 }

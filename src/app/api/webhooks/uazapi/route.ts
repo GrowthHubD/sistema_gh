@@ -47,11 +47,18 @@ function extractContent(payload: UazapiWebhookPayload): { content: string | null
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate webhook secret
-    const secret = request.headers.get("x-webhook-secret") ?? request.headers.get("authorization");
-    const expectedSecret = process.env.UAZAPI_WEBHOOK_SECRET;
+    // Validate webhook token — Uazapi sends the instance token in the Authorization header (raw, no Bearer prefix).
+    // Accept UAZAPI_TOKEN (primary) or UAZAPI_WEBHOOK_SECRET (legacy fallback).
+    const receivedToken =
+      request.headers.get("authorization") ??
+      request.headers.get("x-webhook-secret") ??
+      "";
+    const validTokens = [
+      process.env.UAZAPI_TOKEN,
+      process.env.UAZAPI_WEBHOOK_SECRET,
+    ].filter(Boolean);
 
-    if (expectedSecret && secret !== expectedSecret) {
+    if (validTokens.length > 0 && !validTokens.includes(receivedToken)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

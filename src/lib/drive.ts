@@ -1,59 +1,86 @@
 /**
- * Google Drive helper using Service Account credentials.
- * Uses Node.js crypto for JWT signing — works in Next.js dev and Cloudflare Workers.
- * Required env vars: GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY, GOOGLE_DRIVE_ROOT_FOLDER_ID
+ * Google Drive helper using OAuth2 refresh token.
+ * Required env vars:
+ *   GOOGLE_OAUTH_CLIENT_ID
+ *   GOOGLE_OAUTH_CLIENT_SECRET
+ *   GOOGLE_OAUTH_REFRESH_TOKEN
+ *   GOOGLE_DRIVE_FOLDER_ID  (ID da pasta no Drive onde guardar os ficheiros)
  */
 
 const DRIVE_FILES_API = "https://www.googleapis.com/drive/v3/files";
 
-async function getServiceAccountToken(): Promise<string> {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+/**
+ * Get (or create) a subfolder inside `parentFolderId`.
+ * Returns the subfolder ID.
+ */
+async function getOrCreateSubfolder(parentFolderId: string, name: string): Promise<string> {
+  const token = await getAccessToken();
 
-  if (!email || !rawKey) {
-    throw new Error("Google Drive credentials not configured (GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY)");
+  // Try to find existing folder with this name
+  const query = encodeURIComponent(
+    `mimeType='application/vnd.google-apps.folder' and name='${name}' and '${parentFolderId}' in parents and trashed=false`
+  );
+  const searchRes = await fetch(`${DRIVE_FILES_API}?q=${query}&fields=files(id)`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (searchRes.ok) {
+    const data = await searchRes.json();
+    if (data.files?.length > 0) return data.files[0].id as string;
   }
 
-  // Normalize key — env vars often have literal \n instead of real newlines
-  const privateKey = rawKey.replace(/\\n/g, "\n");
+  // Create the folder
+  const createRes = await fetch(DRIVE_FILES_API, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentFolderId],
+    }),
+  });
 
-  const now = Math.floor(Date.now() / 1000);
+  if (!createRes.ok) {
+    const err = await createRes.text();
+    throw new Error(`Failed to create Drive subfolder: ${err}`);
+  }
 
-  const headerB64 = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
-  const payloadB64 = Buffer.from(JSON.stringify({
-    iss: email,
-    scope: "https://www.googleapis.com/auth/drive.file",
-    aud: "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600,
-  })).toString("base64url");
+  const folder = await createRes.json();
+  return folder.id as string;
+}
 
-  const unsigned = `${headerB64}.${payloadB64}`;
+async function getAccessToken(): Promise<string> {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
 
-  // Use node:crypto for RSA signing
-  const { createSign } = await import("node:crypto");
-  const sign = createSign("RSA-SHA256");
-  sign.update(unsigned);
-  const signature = sign.sign(privateKey, "base64url");
-
-  const jwt = `${unsigned}.${signature}`;
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      "Google Drive não configurado. Defina GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET e GOOGLE_OAUTH_REFRESH_TOKEN no .env"
+    );
+  }
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: jwt,
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`OAuth token request failed: ${err}`);
+    throw new Error(`Falha ao obter access token do Google: ${err}`);
   }
 
   const data = await res.json();
-  if (!data.access_token) throw new Error(`No access_token in response: ${JSON.stringify(data)}`);
+  if (!data.access_token) {
+    throw new Error(`Resposta inválida do Google OAuth: ${JSON.stringify(data)}`);
+  }
+
   return data.access_token as string;
 }
 
@@ -61,19 +88,24 @@ export async function uploadFileToDrive(
   fileBuffer: ArrayBuffer,
   fileName: string,
   mimeType: string,
-  folderId?: string
+  subfolderName?: string
 ): Promise<{ id: string; webViewLink: string }> {
-  const token = await getServiceAccountToken();
-  const rootFolder = folderId ?? process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
+  const token = await getAccessToken();
+  const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+
+  // Resolve target folder: subfolder inside root, or root itself
+  let targetFolderId = rootFolderId;
+  if (rootFolderId && subfolderName) {
+    targetFolderId = await getOrCreateSubfolder(rootFolderId, subfolderName);
+  }
 
   const metadata = {
     name: fileName,
     mimeType,
-    ...(rootFolder ? { parents: [rootFolder] } : {}),
+    ...(targetFolderId ? { parents: [targetFolderId] } : {}),
   };
 
-  // Build multipart/related body manually
-  const boundary = "===growthhub_boundary===";
+  const boundary = "===growthhub===";
   const metaPart = [
     `--${boundary}`,
     "Content-Type: application/json; charset=UTF-8",
@@ -84,12 +116,12 @@ export async function uploadFileToDrive(
   const filePart = `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
   const closing = `\r\n--${boundary}--`;
 
-  const metaBytes = Buffer.from(metaPart, "utf-8");
-  const fileBytes = Buffer.from(fileBuffer);
-  const filePartBytes = Buffer.from(filePart, "utf-8");
-  const closingBytes = Buffer.from(closing, "utf-8");
-
-  const body = Buffer.concat([metaBytes, filePartBytes, fileBytes, closingBytes]);
+  const body = Buffer.concat([
+    Buffer.from(metaPart, "utf-8"),
+    Buffer.from(filePart, "utf-8"),
+    Buffer.from(fileBuffer),
+    Buffer.from(closing, "utf-8"),
+  ]);
 
   const uploadRes = await fetch(
     "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
@@ -98,7 +130,6 @@ export async function uploadFileToDrive(
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": `multipart/related; boundary="${boundary}"`,
-        "Content-Length": String(body.length),
       },
       body,
     }
@@ -106,28 +137,21 @@ export async function uploadFileToDrive(
 
   if (!uploadRes.ok) {
     const err = await uploadRes.text();
-    throw new Error(`Drive upload failed (${uploadRes.status}): ${err}`);
+    throw new Error(`Drive upload falhou (${uploadRes.status}): ${err}`);
   }
 
   const file = await uploadRes.json();
   const fileId = file.id as string;
 
-  // Make file accessible to anyone with the link
-  await fetch(`${DRIVE_FILES_API}/${fileId}/permissions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ role: "reader", type: "anyone" }),
-  });
-
-  const webViewLink = `https://drive.google.com/file/d/${fileId}/view`;
-  return { id: fileId, webViewLink };
+  // Ficheiro herda as permissões da pasta — sem permissão pública
+  return {
+    id: fileId,
+    webViewLink: `https://drive.google.com/file/d/${fileId}/view`,
+  };
 }
 
 export async function deleteFileFromDrive(fileId: string): Promise<void> {
-  const token = await getServiceAccountToken();
+  const token = await getAccessToken();
   await fetch(`${DRIVE_FILES_API}/${fileId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },

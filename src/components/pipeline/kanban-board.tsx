@@ -12,7 +12,8 @@ import {
   type DragOverEvent,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Plus, Tags, Columns, X } from "lucide-react";
+import { Plus, Tags, Columns, X, Trophy } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { KanbanColumn } from "./kanban-column";
 import { LeadCard } from "./lead-card";
@@ -45,6 +46,7 @@ interface Stage {
   name: string;
   color: string | null;
   order: number;
+  isWon: boolean;
 }
 
 interface TeamUser {
@@ -95,7 +97,6 @@ function TagManagerModal({ tags, onClose, onTagsChange }: {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Excluir esta tag?")) return;
     const res = await fetch("/api/pipeline/tags", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -107,6 +108,8 @@ function TagManagerModal({ tags, onClose, onTagsChange }: {
       onTagsChange(updated);
     }
   };
+
+  const [pendingTagDelete, setPendingTagDelete] = useState<string | null>(null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -130,7 +133,7 @@ function TagManagerModal({ tags, onClose, onTagsChange }: {
                 <span className="text-sm text-foreground">{tag.name}</span>
               </div>
               <button
-                onClick={() => handleDelete(tag.id)}
+                onClick={() => setPendingTagDelete(tag.id)}
                 className="text-xs text-muted hover:text-error transition-colors cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
@@ -164,6 +167,13 @@ function TagManagerModal({ tags, onClose, onTagsChange }: {
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={!!pendingTagDelete}
+        title="Excluir tag"
+        message="Tem certeza que deseja excluir esta tag?"
+        onConfirm={() => { if (pendingTagDelete) { handleDelete(pendingTagDelete); setPendingTagDelete(null); } }}
+        onCancel={() => setPendingTagDelete(null)}
+      />
     </div>
   );
 }
@@ -268,6 +278,18 @@ export function KanbanBoard({
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [newStageOpen, setNewStageOpen] = useState(false);
+  const wonStageId = stages.find((s) => s.isWon)?.id ?? "";
+
+  const handleSetWonStage = async (stageId: string) => {
+    // Optimistic update
+    setStages((prev) => prev.map((s) => ({ ...s, isWon: s.id === stageId })));
+    await fetch("/api/pipeline/stages", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: stageId, isWon: true }),
+    });
+  };
+  const [pendingLeadDelete, setPendingLeadDelete] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -360,10 +382,13 @@ export function KanbanBoard({
     setModalOpen(true);
   };
 
-  const handleDeleteLead = async (id: string) => {
-    if (!confirm("Excluir este lead?")) return;
-    const res = await fetch(`/api/pipeline/leads/${id}`, { method: "DELETE" });
-    if (res.ok) setLeads((prev) => prev.filter((l) => l.id !== id));
+  const handleDeleteLead = (id: string) => setPendingLeadDelete(id);
+
+  const confirmLeadDelete = async () => {
+    if (!pendingLeadDelete) return;
+    setPendingLeadDelete(null);
+    const res = await fetch(`/api/pipeline/leads/${pendingLeadDelete}`, { method: "DELETE" });
+    if (res.ok) setLeads((prev) => prev.filter((l) => l.id !== pendingLeadDelete));
   };
 
   const handleLeadSaved = useCallback((savedLead: Record<string, unknown>) => {
@@ -407,6 +432,20 @@ export function KanbanBoard({
               <Tags className="w-3.5 h-3.5" />
               Gerenciar Tags
             </button>
+            <div className="flex items-center gap-1.5 border border-border rounded-lg px-2 py-1 text-sm text-muted">
+              <Trophy className="w-3.5 h-3.5 text-warning shrink-0" />
+              <select
+                value={wonStageId}
+                onChange={(e) => handleSetWonStage(e.target.value)}
+                className="bg-transparent text-sm text-muted focus:outline-none cursor-pointer"
+                title="Etapa de ganho — leads aqui viram clientes automaticamente"
+              >
+                <option value="">Etapa de ganho…</option>
+                {stages.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
             <button
               onClick={() => setNewStageOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm text-muted hover:text-foreground hover:bg-surface-2 transition-colors cursor-pointer"
@@ -542,6 +581,14 @@ export function KanbanBoard({
           onCreated={(stage) => setStages((prev) => [...prev, stage])}
         />
       )}
+
+      <ConfirmDialog
+        open={!!pendingLeadDelete}
+        title="Excluir lead"
+        message="Tem certeza que deseja excluir este lead? Esta ação não pode ser desfeita."
+        onConfirm={confirmLeadDelete}
+        onCancel={() => setPendingLeadDelete(null)}
+      />
     </>
   );
 }

@@ -23,7 +23,9 @@ export type SystemModule =
   | "sdr"
   | "kanban"
   | "blog"
-  | "admin";
+  | "admin"
+  | "agenda"
+  | "configuracoes";
 
 export type PermissionAction = "view" | "edit" | "delete";
 
@@ -89,8 +91,10 @@ export const DEFAULT_PERMISSIONS: Record<
       "clients",
       "sdr",
       "kanban",
+      "agenda",
       "blog",
       "admin",
+      "configuracoes",
     ],
     canEdit: true,
     canDelete: true,
@@ -103,13 +107,15 @@ export const DEFAULT_PERMISSIONS: Record<
       "crm",
       "clients",
       "kanban",
+      "agenda",
       "blog",
+      "configuracoes",
     ],
     canEdit: true,
     canDelete: false,
   },
   operational: {
-    modules: ["kanban", "blog"],
+    modules: ["kanban", "agenda", "blog", "configuracoes"],
     canEdit: true,
     canDelete: false,
   },

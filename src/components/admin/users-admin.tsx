@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Shield, CheckCircle2, XCircle, ChevronDown, Save, Loader2 } from "lucide-react";
+import { Users, Shield, CheckCircle2, XCircle, ChevronDown, Save, Loader2, UserPlus, X, Eye, EyeOff } from "lucide-react";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 type UserRole = "partner" | "manager" | "operational";
@@ -66,6 +67,13 @@ export function UsersAdmin({ initialUsers, initialPermissions, currentUserId }: 
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [savingPerm, setSavingPerm] = useState<string | null>(null);
+
+  // Create user modal
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [showCreatePwd, setShowCreatePwd] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", role: "operational" as UserRole });
 
   const selectedUser = users.find((u) => u.id === selectedUserId);
 
@@ -162,8 +170,124 @@ export function UsersAdmin({ initialUsers, initialPermissions, currentUserId }: 
     }
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    setCreateError("");
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCreateError(data.error ?? "Erro ao criar usuário.");
+        return;
+      }
+      setUsers((prev) => [...prev, { ...data.user, createdAt: data.user.createdAt ?? new Date().toISOString() }]);
+      setShowCreate(false);
+      setCreateForm({ name: "", email: "", password: "", role: "operational" });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {/* Header with Create button */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted">{users.length} usuário{users.length !== 1 ? "s" : ""}</p>
+        <button
+          onClick={() => { setShowCreate(true); setCreateError(""); }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors cursor-pointer"
+        >
+          <UserPlus className="w-4 h-4" /> Criar usuário
+        </button>
+      </div>
+
+      {/* Create user modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface border border-border rounded-xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-semibold text-foreground">Criar novo usuário</h2>
+              <button onClick={() => setShowCreate(false)} className="text-muted hover:text-foreground transition-colors cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              {createError && (
+                <p className="text-sm text-error bg-error/10 border border-error/20 rounded-lg px-3 py-2">{createError}</p>
+              )}
+              <div>
+                <label className="text-label text-muted block mb-1">Nome completo</label>
+                <input
+                  required
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
+                  placeholder="João Silva"
+                />
+              </div>
+              <div>
+                <label className="text-label text-muted block mb-1">Email</label>
+                <input
+                  required
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
+                  placeholder="joao@gmail.com"
+                />
+              </div>
+              <div>
+                <label className="text-label text-muted block mb-1">Senha inicial</label>
+                <div className="relative">
+                  <input
+                    required
+                    type={showCreatePwd ? "text" : "password"}
+                    minLength={8}
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 pr-9 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
+                    placeholder="Mínimo 8 caracteres"
+                  />
+                  <button type="button" onClick={() => setShowCreatePwd((v) => !v)} tabIndex={-1}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors cursor-pointer">
+                    {showCreatePwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-muted mt-1">O usuário poderá alterar a senha depois em Configurações.</p>
+              </div>
+              <div>
+                <label className="text-label text-muted block mb-1">Cargo (nível de acesso)</label>
+                <Select
+                  value={createForm.role}
+                  onChange={(val) => setCreateForm((f) => ({ ...f, role: val as UserRole }))}
+                  options={[
+                    { value: "operational", label: "Operacional" },
+                    { value: "manager", label: "Gerente" },
+                    { value: "partner", label: "Sócio" },
+                  ]}
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowCreate(false)}
+                  className="flex-1 px-4 py-2 rounded-lg border border-border text-sm text-muted hover:text-foreground hover:bg-surface-2 transition-colors cursor-pointer">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={creating}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-50">
+                  {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                  Criar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {users.map((u) => {
         const isSelected = selectedUserId === u.id;
         const isMe = u.id === currentUserId;
@@ -243,13 +367,11 @@ export function UsersAdmin({ initialUsers, initialPermissions, currentUserId }: 
                         </div>
                         <div>
                           <label className="block text-label text-muted mb-1">Cargo</label>
-                          <select value={editingUser!.role}
-                            onChange={(e) => handleUserFieldChange("role", e.target.value as UserRole)}
-                            className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-                            <option value="partner">Sócio</option>
-                            <option value="manager">Gerente</option>
-                            <option value="operational">Operacional</option>
-                          </select>
+                          <Select value={editingUser!.role} onChange={(val) => handleUserFieldChange("role", val as UserRole)} options={[
+                            { value: "partner", label: "Sócio" },
+                            { value: "manager", label: "Gerente" },
+                            { value: "operational", label: "Operacional" },
+                          ]} />
                         </div>
                         <div>
                           <label className="block text-label text-muted mb-1">Título</label>

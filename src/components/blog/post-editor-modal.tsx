@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { Select } from "@/components/ui/select";
 
 interface Category {
   id: string;
@@ -90,6 +91,11 @@ export function PostEditorModal({ categories, post, onClose, onSuccess }: PostEd
   const rootCats = categories.filter((c) => !c.parentId);
   const subCats = (id: string) => categories.filter((c) => c.parentId === id);
 
+  const categoryOptions = rootCats.flatMap((cat) => [
+    { value: cat.id, label: cat.name },
+    ...subCats(cat.id).map((sub) => ({ value: sub.id, label: `↳ ${sub.name}` })),
+  ]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-surface rounded-xl border border-border w-full max-w-4xl max-h-[95vh] flex flex-col">
@@ -134,39 +140,24 @@ export function PostEditorModal({ categories, post, onClose, onSuccess }: PostEd
               </div>
               <div className="flex-1 min-w-[140px]">
                 <label className="block text-label text-muted mb-1">Categoria</label>
-                <select
+                <Select
                   value={form.categoryId}
-                  onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
-                  required
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                >
-                  {rootCats.map((cat) => (
-                    <optgroup key={cat.id} label={cat.name}>
-                      <option value={cat.id}>{cat.name}</option>
-                      {subCats(cat.id).map((sub) => (
-                        <option key={sub.id} value={sub.id}>↳ {sub.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                  {categories.filter((c) => !c.parentId && subCats(c.id).length === 0).length === 0 &&
-                    categories.map((c) => (
-                      !rootCats.find((r) => r.id === c.id) ? null :
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                </select>
+                  onChange={(val) => setForm((f) => ({ ...f, categoryId: val }))}
+                  options={categoryOptions}
+                />
               </div>
               <div className="flex-1 min-w-[120px]">
                 <label className="block text-label text-muted mb-1">Tipo</label>
-                <select
+                <Select
                   value={form.type}
-                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                >
-                  <option value="article">Artigo</option>
-                  <option value="guide">Guia</option>
-                  <option value="list">Lista</option>
-                  <option value="study">Estudo</option>
-                </select>
+                  onChange={(val) => setForm((f) => ({ ...f, type: val }))}
+                  options={[
+                    { value: "article", label: "Artigo" },
+                    { value: "guide", label: "Guia" },
+                    { value: "list", label: "Lista" },
+                    { value: "study", label: "Estudo" },
+                  ]}
+                />
               </div>
               <div className="flex items-end">
                 <label className="flex items-center gap-2 cursor-pointer pb-2">

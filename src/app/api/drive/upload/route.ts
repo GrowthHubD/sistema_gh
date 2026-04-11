@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { checkPermission } from "@/lib/permissions";
-import { uploadFile } from "@/lib/storage";
+import { uploadFileToDrive } from "@/lib/drive";
 import type { UserRole } from "@/types";
 
 const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
@@ -32,9 +32,9 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = await file.arrayBuffer();
-    const { key, url } = await uploadFile(buffer, file.name, file.type);
+    const { id, webViewLink } = await uploadFileToDrive(buffer, file.name, file.type, "Contratos");
 
-    return NextResponse.json({ key, url });
+    return NextResponse.json({ id, url: webViewLink });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Erro ao fazer upload";
     if (msg.includes("não configurado") || msg.includes("not configured")) {
