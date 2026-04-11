@@ -113,7 +113,7 @@ export function KanbanBoard({ initialColumns, initialTasks, users, currentUserId
   const now = new Date();
   const timeFilteredTasks = tasks.filter((t) => {
     if (timeFilter === "all") return true;
-    if (!t.dueDate) return timeFilter === "all";
+    if (!t.dueDate) return false;
     const due = parseISO(t.dueDate);
     if (timeFilter === "today") return isToday(due);
     if (timeFilter === "week") return isWithinInterval(due, { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) });

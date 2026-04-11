@@ -73,17 +73,18 @@ export async function POST(request: NextRequest) {
     // Hash password using the same algorithm as better-auth:
     // scrypt with N=16384, r=16, p=1, dkLen=64 — stored as "hexsalt:hexkey"
     const { scrypt: nodeScrypt } = await import("node:crypto");
-    const { promisify } = await import("node:util");
-    const scryptAsync = promisify(nodeScrypt);
 
     const saltBytes = crypto.getRandomValues(new Uint8Array(16));
     const salt = Buffer.from(saltBytes).toString("hex");
-    const keyBuf = (await scryptAsync(
-      password.normalize("NFKC"),
-      salt,
-      64,
-      { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 }
-    )) as Buffer;
+    const keyBuf = await new Promise<Buffer>((resolve, reject) => {
+      nodeScrypt(
+        password.normalize("NFKC"),
+        salt,
+        64,
+        { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 },
+        (err, key) => (err ? reject(err) : resolve(key))
+      );
+    });
     const hashedPassword = `${salt}:${keyBuf.toString("hex")}`;
 
     // Generate IDs the same way better-auth does (random base36-like string)
