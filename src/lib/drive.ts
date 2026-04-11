@@ -88,8 +88,9 @@ export async function uploadFileToDrive(
   fileBuffer: ArrayBuffer,
   fileName: string,
   mimeType: string,
-  subfolderName?: string
-): Promise<{ id: string; webViewLink: string }> {
+  subfolderName?: string,
+  makePublic = false
+): Promise<{ id: string; webViewLink: string; embedUrl: string }> {
   const token = await getAccessToken();
   const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
@@ -143,10 +144,18 @@ export async function uploadFileToDrive(
   const file = await uploadRes.json();
   const fileId = file.id as string;
 
-  // Ficheiro herda as permissões da pasta — sem permissão pública
+  if (makePublic) {
+    await fetch(`${DRIVE_FILES_API}/${fileId}/permissions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "reader", type: "anyone" }),
+    });
+  }
+
   return {
     id: fileId,
     webViewLink: `https://drive.google.com/file/d/${fileId}/view`,
+    embedUrl: `https://drive.google.com/uc?export=view&id=${fileId}`,
   };
 }
 
