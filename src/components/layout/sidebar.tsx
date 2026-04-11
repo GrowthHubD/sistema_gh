@@ -14,6 +14,8 @@ import {
   Kanban,
   BookOpen,
   Settings,
+  CalendarDays,
+  SlidersHorizontal,
   ChevronsLeft,
   ChevronsRight,
   X,
@@ -45,8 +47,10 @@ const NAV_ITEMS: {
   { title: "Clientes", href: "/clientes", icon: Users, module: "clients" },
   { title: "Agente SDR", href: "/sdr", icon: Bot, module: "sdr" },
   { title: "Kanban", href: "/kanban", icon: Kanban, module: "kanban" },
+  { title: "Agenda", href: "/agenda", icon: CalendarDays, module: "agenda" },
   { title: "Blog", href: "/blog", icon: BookOpen, module: "blog" },
   { title: "Admin", href: "/admin/usuarios", icon: Settings, module: "admin" },
+  { title: "Configurações", href: "/configuracoes", icon: SlidersHorizontal, module: "configuracoes" },
 ];
 
 const ROLE_LABELS: Record<UserRole, string> = {

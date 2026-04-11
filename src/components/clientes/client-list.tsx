@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { Select } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Plus,
   Search,
@@ -48,6 +50,7 @@ export function ClientList({ initialClients, canEdit, canDelete }: ClientListPro
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const filtered = clients.filter((c) => {
     const matchSearch =
@@ -71,14 +74,15 @@ export function ClientList({ initialClients, canEdit, canDelete }: ClientListPro
     }
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este cliente?")) return;
-    setDeletingId(id);
+  const handleDelete = (id: string) => setPendingDelete(id);
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setPendingDelete(null);
+    setDeletingId(pendingDelete);
     try {
-      const res = await fetch(`/api/clientes/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setClients((prev) => prev.filter((c) => c.id !== id));
-      }
+      const res = await fetch(`/api/clientes/${pendingDelete}`, { method: "DELETE" });
+      if (res.ok) setClients((prev) => prev.filter((c) => c.id !== pendingDelete));
     } finally {
       setDeletingId(null);
     }
@@ -100,15 +104,11 @@ export function ClientList({ initialClients, canEdit, canDelete }: ClientListPro
                 className="w-full bg-surface border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
               />
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer"
-            >
-              <option value="all">Todos</option>
-              <option value="active">Ativos</option>
-              <option value="inactive">Inativos</option>
-            </select>
+            <Select value={statusFilter} onChange={setStatusFilter} className="w-32" options={[
+              { value: "all", label: "Todos" },
+              { value: "active", label: "Ativos" },
+              { value: "inactive", label: "Inativos" },
+            ]} />
           </div>
 
           {canEdit && (
@@ -260,6 +260,13 @@ export function ClientList({ initialClients, canEdit, canDelete }: ClientListPro
             }
           : undefined}
         mode={editingClient ? "edit" : "create"}
+      />
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Excluir cliente"
+        message="Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita."
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
       />
     </>
   );

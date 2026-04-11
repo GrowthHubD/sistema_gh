@@ -2,10 +2,12 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { Select } from "@/components/ui/select";
 import {
   Plus, Search, Pencil, Trash2, ExternalLink,
   FileText, AlertTriangle, Loader2, DollarSign,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { ContractFormModal } from "./contract-form-modal";
 import { format } from "date-fns";
@@ -59,6 +61,7 @@ export function ContractList({ initialContracts, clients, canEdit, canDelete }: 
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const filtered = contracts.filter((c) => {
     const matchSearch = !search || c.companyName.toLowerCase().includes(search.toLowerCase());
@@ -79,12 +82,15 @@ export function ContractList({ initialContracts, clients, canEdit, canDelete }: 
     }
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este contrato?")) return;
-    setDeletingId(id);
+  const handleDelete = (id: string) => setPendingDelete(id);
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setPendingDelete(null);
+    setDeletingId(pendingDelete);
     try {
-      const res = await fetch(`/api/contratos/${id}`, { method: "DELETE" });
-      if (res.ok) setContracts((prev) => prev.filter((c) => c.id !== id));
+      const res = await fetch(`/api/contratos/${pendingDelete}`, { method: "DELETE" });
+      if (res.ok) setContracts((prev) => prev.filter((c) => c.id !== pendingDelete));
     } finally {
       setDeletingId(null);
     }
@@ -123,16 +129,12 @@ export function ContractList({ initialContracts, clients, canEdit, canDelete }: 
                 className="w-full bg-surface border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
               />
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer"
-            >
-              <option value="all">Todos</option>
-              <option value="active">Ativos</option>
-              <option value="expiring">A Vencer</option>
-              <option value="inactive">Inativos</option>
-            </select>
+            <Select value={statusFilter} onChange={setStatusFilter} className="w-36" options={[
+              { value: "all", label: "Todos" },
+              { value: "active", label: "Ativos" },
+              { value: "expiring", label: "A Vencer" },
+              { value: "inactive", label: "Inativos" },
+            ]} />
           </div>
 
           {canEdit && (
@@ -291,6 +293,13 @@ export function ContractList({ initialContracts, clients, canEdit, canDelete }: 
           : undefined}
         mode={editingContract ? "edit" : "create"}
         clients={clients}
+      />
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Excluir contrato"
+        message="Tem certeza que deseja excluir este contrato? Esta ação não pode ser desfeita."
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
       />
     </>
   );

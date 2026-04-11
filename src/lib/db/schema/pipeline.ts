@@ -5,6 +5,7 @@ import {
   timestamp,
   numeric,
   integer,
+  boolean,
   index,
   primaryKey,
 } from "drizzle-orm/pg-core";
@@ -20,6 +21,7 @@ export const pipelineStage = pgTable("pipeline_stage", {
   name: text("name").notNull(),
   order: integer("order").notNull(),
   color: text("color"),
+  isWon: boolean("is_won").notNull().default(false), // leads moved here auto-become clients
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

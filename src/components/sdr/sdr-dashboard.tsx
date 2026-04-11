@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, TrendingUp, Calendar, Users, MessageSquare, Target, DollarSign, Clock, Plus, ChevronDown } from "lucide-react";
+import { Bot, TrendingUp, Calendar, Users, MessageSquare, Target, DollarSign, Clock, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -113,19 +114,14 @@ export function SdrDashboard({ agents, initialMetrics, canEdit }: SdrDashboardPr
       {/* Filters + actions */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2 flex-wrap">
-          <div className="relative">
-            <select
-              value={selectedAgentId}
-              onChange={(e) => setSelectedAgentId(e.target.value)}
-              className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer appearance-none pr-8"
-            >
-              <option value="all">Todos os agentes</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
-          </div>
+          <Select
+            value={selectedAgentId}
+            onChange={setSelectedAgentId}
+            options={[
+              { value: "all", label: "Todos os agentes" },
+              ...agents.map((a) => ({ value: a.id, label: a.name })),
+            ]}
+          />
         </div>
         {canEdit && (
           <button
@@ -395,13 +391,11 @@ function SnapshotModal({ agents, onClose, onSuccess }: SnapshotModalProps) {
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
             <label className="block text-label text-muted mb-1">Agente</label>
-            <select
+            <Select
               value={form.agentId}
-              onChange={(e) => setForm((p) => ({ ...p, agentId: e.target.value }))}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
-            >
-              {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+              onChange={(val) => setForm((p) => ({ ...p, agentId: val }))}
+              options={agents.map((a) => ({ value: a.id, label: a.name }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

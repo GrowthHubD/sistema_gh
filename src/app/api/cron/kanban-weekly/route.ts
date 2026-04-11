@@ -4,12 +4,29 @@ import { kanbanTask } from "@/lib/db/schema/kanban";
 import { user } from "@/lib/db/schema/users";
 import { whatsappNumber } from "@/lib/db/schema/crm";
 import { contract } from "@/lib/db/schema/contracts";
+import { messageTemplate } from "@/lib/db/schema/settings";
 import { eq, and, gte, lte, ne } from "drizzle-orm";
 import { format, addDays, startOfWeek, endOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+const PRIORITY_EMOJI: Record<string, string> = {
+  urgent: "🔴", high: "🟠", medium: "🟡", low: "🟢",
+};
+
+const DEFAULT_WEEKLY_TEMPLATE =
+  "📅 *Resumo da semana ({{semana}})*\n\nOlá, {{nome}}! Você tem {{qtd}} tarefa(s) essa semana:\n\n{{tarefas}}\n\n_Growth Hub Manager_";
+
+const DEFAULT_CONTRACT_TEMPLATE =
+  "⚠️ *{{qtd}} contrato(s) a vencer em 30 dias:*\n\n{{contratos}}\n\n_Growth Hub Manager_";
+
+function applyTemplate(template: string, vars: Record<string, string>): string {
+  return Object.entries(vars).reduce(
+    (msg, [key, val]) => msg.replaceAll(`{{${key}}}`, val),
+    template
+  );
+}
+
 // Called by Cloudflare Cron: "0 7 * * 1" (Monday 7h UTC)
-// Also handles contract expiry alerts (within 30 days)
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -19,6 +36,7 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   const weekStart = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const weekRange = `${format(now, "dd/MM")} – ${format(addDays(now, 6), "dd/MM")}`;
 
   try {
     // ─── 1. Weekly kanban digest ───────────────────────────────────
@@ -70,7 +88,6 @@ export async function GET(request: NextRequest) {
         )
       );
 
-    // Update expiring status
     for (const c of expiringContracts) {
       await db
         .update(contract)
@@ -78,7 +95,37 @@ export async function GET(request: NextRequest) {
         .where(eq(contract.id, c.id));
     }
 
+    // ─── Fetch templates ──────────────────────────────────────────
+    let weeklyBody = DEFAULT_WEEKLY_TEMPLATE;
+    let contractBody = DEFAULT_CONTRACT_TEMPLATE;
+    try {
+      const templates = await db
+        .select({ id: messageTemplate.id, body: messageTemplate.body })
+        .from(messageTemplate)
+        .where(
+          eq(messageTemplate.id, "weekly_digest")
+        );
+      // Also fetch contract template separately
+      const [contractTmpl] = await db
+        .select({ body: messageTemplate.body })
+        .from(messageTemplate)
+        .where(eq(messageTemplate.id, "contract_alert"))
+        .limit(1);
+      const [weeklyTmpl] = await db
+        .select({ body: messageTemplate.body })
+        .from(messageTemplate)
+        .where(eq(messageTemplate.id, "weekly_digest"))
+        .limit(1);
+      if (weeklyTmpl) weeklyBody = weeklyTmpl.body;
+      if (contractTmpl) contractBody = contractTmpl.body;
+    } catch {
+      // Table may not exist yet — use defaults
+    }
+
     const baseUrl = process.env.UAZAPI_BASE_URL;
+    const groupJid = process.env.REMINDER_GROUP_JID ?? "";
+    const adminGroupJid = process.env.ADMIN_GROUP_JID ?? "";
+
     const [wNum] = await db
       .select()
       .from(whatsappNumber)
@@ -89,51 +136,24 @@ export async function GET(request: NextRequest) {
     let contractAlertSent = false;
 
     if (baseUrl && wNum) {
-      const PRIORITY_EMOJI: Record<string, string> = {
-        urgent: "🔴", high: "🟠", medium: "🟡", low: "🟢",
-      };
-      const DAY_PT: Record<string, string> = {
-        Monday: "Seg", Tuesday: "Ter", Wednesday: "Qua",
-        Thursday: "Qui", Friday: "Sex", Saturday: "Sáb", Sunday: "Dom",
-      };
+      if (groupJid) {
+        // ── Group mode: @mention each user ──
+        for (const [, data] of byUser) {
+          if (!data.phone) continue;
 
-      // Send weekly digest to each user
-      for (const [, data] of byUser) {
-        if (!data.phone) continue;
-
-        const taskLines = data.tasks
-          .map((t) => {
-            const day = t.dueDate ? format(new Date(t.dueDate + "T12:00:00"), "EEE", { locale: ptBR }) : "";
-            return `${PRIORITY_EMOJI[t.priority] ?? "•"} [${day}] ${t.title}`;
-          })
-          .join("\n");
-
-        const message =
-          `📅 *Resumo da semana (${format(now, "dd/MM")} – ${format(addDays(now, 6), "dd/MM")})*\n\n` +
-          `Olá, ${data.name.split(" ")[0]}! Você tem ${data.tasks.length} tarefa${data.tasks.length > 1 ? "s" : ""} essa semana:\n\n` +
-          taskLines +
-          `\n\n_Growth Hub Manager_`;
-
-        await fetch(`${baseUrl}/sendText`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "SessionKey": wNum.uazapiSession,
-            "Token": wNum.uazapiToken,
-          },
-          body: JSON.stringify({ phone: data.phone, message }),
-        }).catch(() => null);
-
-        kanbanSent++;
-      }
-
-      // Send contract alerts to partners (use PARTNER_PHONE env or first active number)
-      if (expiringContracts.length > 0) {
-        const partnerPhone = process.env.PARTNER_ALERT_PHONE;
-        if (partnerPhone) {
-          const contractLines = expiringContracts
-            .map((c) => `• ${c.companyName} — vence ${c.endDate ? format(new Date(c.endDate + "T12:00:00"), "dd/MM/yyyy") : "?"}`)
+          const taskLines = data.tasks
+            .map((t) => {
+              const day = t.dueDate ? format(new Date(t.dueDate + "T12:00:00"), "EEE", { locale: ptBR }) : "";
+              return `${PRIORITY_EMOJI[t.priority] ?? "•"} [${day}] ${t.title}`;
+            })
             .join("\n");
+
+          const message = applyTemplate(weeklyBody, {
+            nome: data.name.split(" ")[0],
+            semana: weekRange,
+            qtd: String(data.tasks.length),
+            tarefas: taskLines,
+          });
 
           await fetch(`${baseUrl}/sendText`, {
             method: "POST",
@@ -143,16 +163,69 @@ export async function GET(request: NextRequest) {
               "Token": wNum.uazapiToken,
             },
             body: JSON.stringify({
-              phone: partnerPhone,
-              message:
-                `⚠️ *${expiringContracts.length} contrato${expiringContracts.length > 1 ? "s" : ""} a vencer em 30 dias:*\n\n` +
-                contractLines +
-                `\n\n_Growth Hub Manager_`,
+              phone: groupJid,
+              message: `@${data.phone}\n${message}`,
+              mentionedJid: [`${data.phone}@s.whatsapp.net`],
             }),
           }).catch(() => null);
 
-          contractAlertSent = true;
+          kanbanSent++;
         }
+      } else {
+        // ── Individual mode ──
+        for (const [, data] of byUser) {
+          if (!data.phone) continue;
+
+          const taskLines = data.tasks
+            .map((t) => {
+              const day = t.dueDate ? format(new Date(t.dueDate + "T12:00:00"), "EEE", { locale: ptBR }) : "";
+              return `${PRIORITY_EMOJI[t.priority] ?? "•"} [${day}] ${t.title}`;
+            })
+            .join("\n");
+
+          const message = applyTemplate(weeklyBody, {
+            nome: data.name.split(" ")[0],
+            semana: weekRange,
+            qtd: String(data.tasks.length),
+            tarefas: taskLines,
+          });
+
+          await fetch(`${baseUrl}/sendText`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "SessionKey": wNum.uazapiSession,
+              "Token": wNum.uazapiToken,
+            },
+            body: JSON.stringify({ phone: data.phone, message }),
+          }).catch(() => null);
+
+          kanbanSent++;
+        }
+      }
+
+      // ── Contract alerts → admin group ──
+      if (expiringContracts.length > 0 && adminGroupJid) {
+        const contractLines = expiringContracts
+          .map((c) => `• ${c.companyName} — vence ${c.endDate ? format(new Date(c.endDate + "T12:00:00"), "dd/MM/yyyy") : "?"}`)
+          .join("\n");
+
+        const message = applyTemplate(contractBody, {
+          qtd: String(expiringContracts.length),
+          contratos: contractLines,
+        });
+
+        await fetch(`${baseUrl}/sendText`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "SessionKey": wNum.uazapiSession,
+            "Token": wNum.uazapiToken,
+          },
+          body: JSON.stringify({ phone: adminGroupJid, message }),
+        }).catch(() => null);
+
+        contractAlertSent = true;
       }
     }
 
@@ -160,6 +233,7 @@ export async function GET(request: NextRequest) {
       kanbanSent,
       contractAlerts: expiringContracts.length,
       contractAlertSent,
+      mode: groupJid ? "group" : "individual",
     });
   } catch {
     console.error("[CRON] kanban-weekly failed:", { operation: "weekly_dispatch" });

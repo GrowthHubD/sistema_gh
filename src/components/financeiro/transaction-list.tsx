@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { Plus, Search, Pencil, Trash2, TrendingUp, TrendingDown, Loader2, ChevronDown } from "lucide-react";
+import { Select } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { TransactionFormModal } from "./transaction-form-modal";
 import { format } from "date-fns";
@@ -59,6 +61,7 @@ export function TransactionList({ initialTransactions, canEdit, canDelete, typeF
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const filtered = transactions.filter((t) => {
     const matchSearch = !search || t.name.toLowerCase().includes(search.toLowerCase());
@@ -85,12 +88,15 @@ export function TransactionList({ initialTransactions, canEdit, canDelete, typeF
     }
   }, [monthFilter, onSummaryChange]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Excluir este lançamento?")) return;
-    setDeletingId(id);
+  const handleDelete = (id: string) => setPendingDelete(id);
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setPendingDelete(null);
+    setDeletingId(pendingDelete);
     try {
-      const res = await fetch(`/api/financeiro/${id}`, { method: "DELETE" });
-      if (res.ok) setTransactions((p) => p.filter((t) => t.id !== id));
+      const res = await fetch(`/api/financeiro/${pendingDelete}`, { method: "DELETE" });
+      if (res.ok) setTransactions((p) => p.filter((t) => t.id !== pendingDelete));
     } finally {
       setDeletingId(null);
     }
@@ -109,20 +115,18 @@ export function TransactionList({ initialTransactions, canEdit, canDelete, typeF
             <input type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}
               className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer" />
             {!typeFixed && (
-              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-                className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-                <option value="all">Todos</option>
-                <option value="income">Receitas</option>
-                <option value="expense">Despesas</option>
-              </select>
+              <Select value={typeFilter} onChange={setTypeFilter} className="w-36" options={[
+                { value: "all", label: "Todos" },
+                { value: "income", label: "Receitas" },
+                { value: "expense", label: "Despesas" },
+              ]} />
             )}
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-              <option value="all">Todos status</option>
-              <option value="paid">Pagos</option>
-              <option value="pending">Pendentes</option>
-              <option value="overdue">Atrasados</option>
-            </select>
+            <Select value={statusFilter} onChange={setStatusFilter} className="w-40" options={[
+              { value: "all", label: "Todos status" },
+              { value: "paid", label: "Pagos" },
+              { value: "pending", label: "Pendentes" },
+              { value: "overdue", label: "Atrasados" },
+            ]} />
           </div>
           {canEdit && (
             <button onClick={() => { setEditing(null); setModalOpen(true); }}
@@ -236,6 +240,13 @@ export function TransactionList({ initialTransactions, canEdit, canDelete, typeF
           : undefined}
         mode={editing ? "edit" : "create"}
         defaultType={typeFixed}
+      />
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Excluir lançamento"
+        message="Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita."
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
       />
     </>
   );

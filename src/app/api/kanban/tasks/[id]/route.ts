@@ -4,7 +4,9 @@ import { auth } from "@/lib/auth";
 import { checkPermission } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { kanbanTask } from "@/lib/db/schema/kanban";
+import { userGoogleIntegration } from "@/lib/db/schema/users";
 import { eq } from "drizzle-orm";
+import { updateCalendarEvent, deleteCalendarEvent } from "@/lib/google-calendar";
 import type { UserRole } from "@/types";
 
 const updateSchema = z.object({
@@ -37,6 +39,14 @@ export async function PATCH(
       return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
     }
 
+    // Fetch existing task for Calendar sync
+    const [existing] = await db
+      .select()
+      .from(kanbanTask)
+      .where(eq(kanbanTask.id, id))
+      .limit(1);
+    if (!existing) return NextResponse.json({ error: "Tarefa não encontrada" }, { status: 404 });
+
     const d = parsed.data;
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -58,7 +68,26 @@ export async function PATCH(
       .where(eq(kanbanTask.id, id))
       .returning();
 
-    if (!updated) return NextResponse.json({ error: "Tarefa não encontrada" }, { status: 404 });
+    // Sync to Google Calendar (best-effort, only when title/dueDate/priority changed)
+    const calendarRelevant = d.title !== undefined || d.dueDate !== undefined || d.priority !== undefined || d.description !== undefined;
+    if (calendarRelevant && updated.googleCalendarEventId && updated.dueDate) {
+      const assigneeId = updated.assignedTo;
+      const [integration] = await db
+        .select({ googleCalendarId: userGoogleIntegration.googleCalendarId })
+        .from(userGoogleIntegration)
+        .where(eq(userGoogleIntegration.userId, assigneeId))
+        .limit(1);
+
+      if (integration) {
+        await updateCalendarEvent(assigneeId, integration.googleCalendarId, updated.googleCalendarEventId, {
+          title: updated.title,
+          description: updated.description,
+          dueDate: updated.dueDate,
+          priority: updated.priority,
+        });
+      }
+    }
+
     return NextResponse.json({ task: updated });
   } catch {
     console.error("[KANBAN] PATCH task failed:", { operation: "update" });
@@ -79,12 +108,33 @@ export async function DELETE(
     const canDelete = await checkPermission(session.user.id, userRole, "kanban", "delete");
     if (!canDelete) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
 
+    // Fetch before delete for Calendar cleanup
+    const [existing] = await db
+      .select()
+      .from(kanbanTask)
+      .where(eq(kanbanTask.id, id))
+      .limit(1);
+
     const [deleted] = await db
       .delete(kanbanTask)
       .where(eq(kanbanTask.id, id))
       .returning({ id: kanbanTask.id });
 
     if (!deleted) return NextResponse.json({ error: "Tarefa não encontrada" }, { status: 404 });
+
+    // Clean up Calendar event
+    if (existing?.googleCalendarEventId) {
+      const [integration] = await db
+        .select({ googleCalendarId: userGoogleIntegration.googleCalendarId })
+        .from(userGoogleIntegration)
+        .where(eq(userGoogleIntegration.userId, existing.assignedTo))
+        .limit(1);
+
+      if (integration) {
+        await deleteCalendarEvent(existing.assignedTo, integration.googleCalendarId, existing.googleCalendarEventId);
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch {
     console.error("[KANBAN] DELETE task failed:", { operation: "delete" });

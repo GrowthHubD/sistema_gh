@@ -11,6 +11,7 @@ import * as kanban from "./schema/kanban";
 import * as sdr from "./schema/sdr";
 import * as blog from "./schema/blog";
 import * as notifications from "./schema/notifications";
+import * as settings from "./schema/settings";
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -27,6 +28,7 @@ export const db = drizzle({
     ...sdr,
     ...blog,
     ...notifications,
+    ...settings,
   },
 });
 

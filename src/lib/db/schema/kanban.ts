@@ -41,6 +41,7 @@ export const kanbanTask = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     order: integer("order").notNull().default(0),
     whatsappSent: boolean("whatsapp_sent").notNull().default(false),
+    googleCalendarEventId: text("google_calendar_event_id"),
     createdBy: text("created_by")
       .notNull()
       .references(() => user.id),

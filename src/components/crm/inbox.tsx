@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { ConversationView } from "./conversation-view";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Select } from "@/components/ui/select";
 
 interface Conversation {
   id: string;
@@ -114,19 +115,23 @@ export function Inbox({ initialConversations, numbers, canEdit }: InboxProps) {
           />
         </div>
         {numbers.length > 1 && (
-          <select value={numberFilter} onChange={(e) => setNumberFilter(e.target.value)}
-            className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-            <option value="all">Todos os números</option>
-            {numbers.map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}
-          </select>
+          <Select
+            value={numberFilter}
+            onChange={setNumberFilter}
+            options={[
+              { value: "all", label: "Todos os números" },
+              ...numbers.map((n) => ({ value: n.id, label: n.label })),
+            ]}
+          />
         )}
-        <select value={classificationFilter} onChange={(e) => setClassificationFilter(e.target.value)}
-          className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-          <option value="all">Todas classificações</option>
-          {Object.entries(CLASSIFICATION_CONFIG).map(([k, v]) => (
-            <option key={k} value={k}>{v.label}</option>
-          ))}
-        </select>
+        <Select
+          value={classificationFilter}
+          onChange={setClassificationFilter}
+          options={[
+            { value: "all", label: "Todas classificações" },
+            ...Object.entries(CLASSIFICATION_CONFIG).map(([k, v]) => ({ value: k, label: v.label })),
+          ]}
+        />
         {totalUnread > 0 && (
           <span className="ml-auto bg-primary text-white text-xs px-2 py-1 rounded-full font-medium">
             {totalUnread} não lida{totalUnread > 1 ? "s" : ""}

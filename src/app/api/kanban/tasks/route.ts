@@ -4,7 +4,9 @@ import { auth } from "@/lib/auth";
 import { checkPermission } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { kanbanTask, kanbanColumn } from "@/lib/db/schema/kanban";
+import { userGoogleIntegration } from "@/lib/db/schema/users";
 import { eq } from "drizzle-orm";
+import { createCalendarEvent } from "@/lib/google-calendar";
 import type { UserRole } from "@/types";
 
 const createSchema = z.object({
@@ -52,6 +54,32 @@ export async function POST(request: NextRequest) {
         createdBy: session.user.id,
       })
       .returning();
+
+    // Sync to Google Calendar if assignee has it connected and task has a due date
+    if (task.dueDate) {
+      const [integration] = await db
+        .select({ googleCalendarId: userGoogleIntegration.googleCalendarId })
+        .from(userGoogleIntegration)
+        .where(eq(userGoogleIntegration.userId, d.assignedTo))
+        .limit(1);
+
+      if (integration) {
+        const eventId = await createCalendarEvent(d.assignedTo, integration.googleCalendarId, {
+          title: d.title,
+          description: d.description ?? null,
+          dueDate: task.dueDate,
+          priority: d.priority,
+        });
+
+        if (eventId) {
+          await db
+            .update(kanbanTask)
+            .set({ googleCalendarEventId: eventId })
+            .where(eq(kanbanTask.id, task.id));
+          task.googleCalendarEventId = eventId;
+        }
+      }
+    }
 
     return NextResponse.json({ task }, { status: 201 });
   } catch {

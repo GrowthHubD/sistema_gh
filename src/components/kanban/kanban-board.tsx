@@ -7,8 +7,10 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, CalendarDays } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, parseISO, isToday } from "date-fns";
 import { TaskCard } from "./task-card";
 import { TaskModal } from "./task-modal";
 
@@ -103,10 +105,23 @@ export function KanbanBoard({ initialColumns, initialTasks, users, currentUserId
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [defaultColumnId, setDefaultColumnId] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [timeFilter, setTimeFilter] = useState<"today" | "week" | "month" | "all">("today");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  const getTasksForColumn = (columnId: string) => tasks.filter((t) => t.columnId === columnId);
+  const now = new Date();
+  const timeFilteredTasks = tasks.filter((t) => {
+    if (timeFilter === "all") return true;
+    if (!t.dueDate) return false;
+    const due = parseISO(t.dueDate);
+    if (timeFilter === "today") return isToday(due);
+    if (timeFilter === "week") return isWithinInterval(due, { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) });
+    if (timeFilter === "month") return isWithinInterval(due, { start: startOfMonth(now), end: endOfMonth(now) });
+    return true;
+  });
+
+  const getTasksForColumn = (columnId: string) => timeFilteredTasks.filter((t) => t.columnId === columnId);
 
   const handleDragStart = ({ active }: DragStartEvent) => {
     setActiveTask(tasks.find((t) => t.id === active.id) ?? null);
@@ -166,10 +181,13 @@ export function KanbanBoard({ initialColumns, initialTasks, users, currentUserId
     }).catch(() => null);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Excluir esta tarefa?")) return;
-    const res = await fetch(`/api/kanban/tasks/${id}`, { method: "DELETE" });
-    if (res.ok) setTasks((prev) => prev.filter((t) => t.id !== id));
+  const handleDelete = (id: string) => setPendingDelete(id);
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setPendingDelete(null);
+    const res = await fetch(`/api/kanban/tasks/${pendingDelete}`, { method: "DELETE" });
+    if (res.ok) setTasks((prev) => prev.filter((t) => t.id !== pendingDelete));
   };
 
   const handleTaskSaved = useCallback((saved: Record<string, unknown>) => {
@@ -194,11 +212,36 @@ export function KanbanBoard({ initialColumns, initialTasks, users, currentUserId
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <p className="text-sm text-muted">
-          <strong className="text-foreground">{totalPending}</strong> tarefa{totalPending !== 1 ? "s" : ""} pendente{totalPending !== 1 ? "s" : ""}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        {/* Time filter pills */}
+        <div className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1">
+          <CalendarDays className="w-4 h-4 text-muted mx-2 shrink-0" />
+          {([
+            { key: "today", label: "Hoje" },
+            { key: "week",  label: "Semana" },
+            { key: "month", label: "Mês" },
+            { key: "all",   label: "Todos" },
+          ] as const).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setTimeFilter(key)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer",
+                timeFilter === key
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-muted hover:text-foreground hover:bg-surface-2"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Stats + actions */}
         <div className="flex items-center gap-2">
+          <p className="text-sm text-muted">
+            <strong className="text-foreground">{totalPending}</strong> pendente{totalPending !== 1 ? "s" : ""}
+          </p>
           <button onClick={refresh} disabled={refreshing}
             className="p-2 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 transition-colors cursor-pointer">
             <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
@@ -245,6 +288,13 @@ export function KanbanBoard({ initialColumns, initialTasks, users, currentUserId
           ? { id: editingTask.id, title: editingTask.title, description: editingTask.description ?? "", columnId: editingTask.columnId, assignedTo: editingTask.assignedTo, dueDate: editingTask.dueDate ?? "", priority: editingTask.priority as "low"|"medium"|"high"|"urgent" }
           : { columnId: defaultColumnId }}
         mode={editingTask ? "edit" : "create"}
+      />
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Excluir tarefa"
+        message="Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita."
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
       />
     </>
   );

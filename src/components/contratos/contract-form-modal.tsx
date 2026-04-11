@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { X, Loader2, FileText, ExternalLink, Trash2, Upload } from "lucide-react";
+import { Select } from "@/components/ui/select";
 
 interface ContractFormData {
   clientId: string;
@@ -149,13 +150,12 @@ export function ContractFormModal({
                 <label className="text-label text-muted block mb-1.5">
                   Cliente <span className="text-error">*</span>
                 </label>
-                <select value={form.clientId} onChange={set("clientId")} required
-                  className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-                  <option value="">Selecione o cliente...</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.companyName}</option>
-                  ))}
-                </select>
+                <Select
+                  value={form.clientId}
+                  onChange={(val) => setForm((p) => ({ ...p, clientId: val }))}
+                  placeholder="Selecione o cliente..."
+                  options={clients.map((c) => ({ value: c.id, label: c.companyName }))}
+                />
               </div>
             )}
 
@@ -186,11 +186,10 @@ export function ContractFormModal({
 
             <div>
               <label className="text-label text-muted block mb-1.5">Tipo</label>
-              <select value={form.type} onChange={set("type")}
-                className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-                <option value="monthly">Mensal</option>
-                <option value="annual">Anual</option>
-              </select>
+              <Select value={form.type} onChange={(val) => setForm((p) => ({ ...p, type: val as "monthly" | "annual" }))} options={[
+                { value: "monthly", label: "Mensal" },
+                { value: "annual", label: "Anual" },
+              ]} />
             </div>
 
             <div>
@@ -216,12 +215,11 @@ export function ContractFormModal({
 
             <div className="sm:col-span-2">
               <label className="text-label text-muted block mb-1.5">Status</label>
-              <select value={form.status} onChange={set("status")}
-                className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer">
-                <option value="active">Ativo</option>
-                <option value="expiring">A Vencer</option>
-                <option value="inactive">Inativo</option>
-              </select>
+              <Select value={form.status} onChange={(val) => setForm((p) => ({ ...p, status: val as "active" | "expiring" | "inactive" }))} options={[
+                { value: "active", label: "Ativo" },
+                { value: "expiring", label: "A Vencer" },
+                { value: "inactive", label: "Inativo" },
+              ]} />
             </div>
 
             {/* ── Arquivo do contrato ── */}
