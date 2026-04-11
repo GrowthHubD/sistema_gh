@@ -1,0 +1,10 @@
+name = "growthhub-ams"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".open-next/assets"
+
+[vars]
+# Non-secret vars can go here; secrets go via wrangler secret put or dashboard
+# NOTE: cron triggers are handled by cron-job.org calling the HTTP endpoints:
+#   GET /api/cron/kanban-daily   — daily at 08:00 UTC  (Authorization: Bearer CRON_SECRET)
+#   GET /api/cron/kanban-weekly  — Monday at 08:00 UTC (Authorization: Bearer CRON_SECRET)
