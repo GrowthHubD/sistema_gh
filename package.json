@@ -11,9 +11,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "build:cf": "opennextjs-cloudflare build",
-    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+    "build:cf": "npx @cloudflare/next-on-pages",
+    "preview:cf": "npx @cloudflare/next-on-pages && wrangler pages dev .vercel/output/static",
+    "deploy": "npx @cloudflare/next-on-pages && wrangler pages deploy"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1028.0",
@@ -43,7 +43,7 @@
     "ignoredBuiltDependencies": ["sharp", "unrs-resolver"]
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1.0.0",
+    "@cloudflare/next-on-pages": "^1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
