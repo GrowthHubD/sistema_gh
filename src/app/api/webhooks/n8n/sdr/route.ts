@@ -1,4 +1,3 @@
-export const runtime = "edge";
 /**
  * Webhook endpoint for n8n to push SDR agent metrics.
  *
