@@ -124,6 +124,7 @@ export async function GET(request: NextRequest) {
 
     const baseUrl = process.env.UAZAPI_BASE_URL;
     const groupJid = process.env.REMINDER_GROUP_JID ?? "";
+    const adminGroupJid = process.env.ADMIN_GROUP_JID ?? "";
 
     const [wNum] = await db
       .select()
@@ -203,31 +204,28 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // ── Contract alerts → partner phone ──
-      if (expiringContracts.length > 0) {
-        const partnerPhone = process.env.PARTNER_ALERT_PHONE;
-        if (partnerPhone) {
-          const contractLines = expiringContracts
-            .map((c) => `• ${c.companyName} — vence ${c.endDate ? format(new Date(c.endDate + "T12:00:00"), "dd/MM/yyyy") : "?"}`)
-            .join("\n");
+      // ── Contract alerts → admin group ──
+      if (expiringContracts.length > 0 && adminGroupJid) {
+        const contractLines = expiringContracts
+          .map((c) => `• ${c.companyName} — vence ${c.endDate ? format(new Date(c.endDate + "T12:00:00"), "dd/MM/yyyy") : "?"}`)
+          .join("\n");
 
-          const message = applyTemplate(contractBody, {
-            qtd: String(expiringContracts.length),
-            contratos: contractLines,
-          });
+        const message = applyTemplate(contractBody, {
+          qtd: String(expiringContracts.length),
+          contratos: contractLines,
+        });
 
-          await fetch(`${baseUrl}/sendText`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "SessionKey": wNum.uazapiSession,
-              "Token": wNum.uazapiToken,
-            },
-            body: JSON.stringify({ phone: partnerPhone, message }),
-          }).catch(() => null);
+        await fetch(`${baseUrl}/sendText`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "SessionKey": wNum.uazapiSession,
+            "Token": wNum.uazapiToken,
+          },
+          body: JSON.stringify({ phone: adminGroupJid, message }),
+        }).catch(() => null);
 
-          contractAlertSent = true;
-        }
+        contractAlertSent = true;
       }
     }
 
