@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Eye, EyeOff, ImagePlus, Paperclip, X, Loader2 } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { useUiSound } from "@/hooks/use-ui-sound";
 
 interface Category {
   id: string;
@@ -52,6 +53,7 @@ async function uploadFile(file: File): Promise<{ url: string; webViewLink: strin
 }
 
 export function PostEditorModal({ categories, post, onClose, onSuccess }: PostEditorModalProps) {
+  const { playSound } = useUiSound();
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(false);
   const [form, setForm] = useState({
@@ -73,6 +75,10 @@ export function PostEditorModal({ categories, post, onClose, onSuccess }: PostEd
   const coverInputRef = useRef<HTMLInputElement>(null);
   const inlineInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    playSound("open");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (post) {
@@ -163,9 +169,11 @@ export function PostEditorModal({ categories, post, onClose, onSuccess }: PostEd
       });
       if (res.ok) {
         const data = await res.json();
+        playSound("save");
         onSuccess(data.post);
       } else {
         const data = await res.json().catch(() => ({}));
+        playSound("error");
         setSubmitError(data.error ?? "Erro ao salvar post.");
       }
     } finally {
@@ -183,14 +191,14 @@ export function PostEditorModal({ categories, post, onClose, onSuccess }: PostEd
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-surface rounded-xl border border-border w-full max-w-4xl max-h-[95vh] flex flex-col">
+      <div className="bg-surface rounded-xl border border-border w-full max-w-4xl max-h-[95vh] flex flex-col animate-slide-up">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <h2 className="text-h3 text-foreground">{post ? "Editar Post" : "Novo Post"}</h2>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setPreview((p) => !p)}
+              onClick={() => { playSound("toggle"); setPreview((p) => !p); }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted hover:text-foreground border border-border rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
             >
               {preview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -249,7 +257,7 @@ export function PostEditorModal({ categories, post, onClose, onSuccess }: PostEd
                   <input
                     type="checkbox"
                     checked={form.isPublished}
-                    onChange={(e) => setForm((f) => ({ ...f, isPublished: e.target.checked }))}
+                    onChange={(e) => { playSound("toggle"); setForm((f) => ({ ...f, isPublished: e.target.checked })); }}
                     className="w-4 h-4 accent-primary cursor-pointer"
                   />
                   <span className="text-sm text-foreground">Publicado</span>

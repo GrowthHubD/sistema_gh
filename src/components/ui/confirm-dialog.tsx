@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
+import { useUiSound } from "@/hooks/use-ui-sound";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -23,13 +25,19 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const { playSound } = useUiSound();
+
+  useEffect(() => {
+    if (open) playSound(variant === "danger" ? "error" : "pop");
+  }, [open, variant, playSound]);
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-surface border border-border rounded-xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200">
+      <div className="bg-surface border border-border rounded-xl shadow-2xl w-full max-w-sm p-6 animate-slide-up">
         <div
-          className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 mx-auto ${
+          className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 mx-auto animate-shake ${
             variant === "danger" ? "bg-error/10" : "bg-warning/10"
           }`}
         >
@@ -45,14 +53,14 @@ export function ConfirmDialog({
 
         <div className="flex gap-3">
           <button
-            onClick={onCancel}
-            className="flex-1 py-2 px-4 rounded-lg border border-border text-sm text-muted hover:text-foreground hover:bg-surface-2 transition-colors cursor-pointer"
+            onClick={() => { playSound("click"); onCancel(); }}
+            className="flex-1 py-2 px-4 rounded-lg border border-border text-sm text-muted hover:text-foreground hover:bg-surface-2 transition-all active:scale-95 cursor-pointer"
           >
             {cancelLabel}
           </button>
           <button
-            onClick={onConfirm}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium text-white transition-colors cursor-pointer ${
+            onClick={() => { playSound("delete"); onConfirm(); }}
+            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium text-white transition-all active:scale-95 cursor-pointer ${
               variant === "danger"
                 ? "bg-error hover:bg-error/90"
                 : "bg-warning hover:bg-warning/90 text-background"
