@@ -2,9 +2,10 @@
 
 import { signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, LogOut, Menu } from "lucide-react";
 import { Breadcrumbs } from "./breadcrumbs";
+import { useUiSound } from "@/hooks/use-ui-sound";
 import { cn } from "@/lib/utils";
 
 interface TopbarProps {
@@ -16,6 +17,9 @@ interface TopbarProps {
 export function Topbar({ userName, userImage, onMenuClick }: TopbarProps) {
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [bellRinging, setBellRinging] = useState(false);
+  const prevUnread = useRef(0);
+  const { playSound } = useUiSound();
 
   useEffect(() => {
     let mounted = true;
@@ -25,7 +29,14 @@ export function Topbar({ userName, userImage, onMenuClick }: TopbarProps) {
         const res = await fetch("/api/notificacoes?unread=true");
         if (res.ok && mounted) {
           const data = await res.json();
-          setUnreadCount(data.unreadCount ?? 0);
+          const count = data.unreadCount ?? 0;
+          if (count > prevUnread.current) {
+            playSound("notification");
+            setBellRinging(true);
+            setTimeout(() => setBellRinging(false), 700);
+          }
+          prevUnread.current = count;
+          setUnreadCount(count);
         }
       } catch {
         // ignore
@@ -38,7 +49,7 @@ export function Topbar({ userName, userImage, onMenuClick }: TopbarProps) {
       mounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [playSound]);
 
   async function handleSignOut() {
     await signOut();
@@ -71,15 +82,16 @@ export function Topbar({ userName, userImage, onMenuClick }: TopbarProps) {
       <div className="flex items-center gap-2">
         {/* Notifications bell with badge */}
         <button
-          onClick={() => router.push("/notificacoes")}
+          onClick={() => { playSound("pop"); router.push("/notificacoes"); }}
           className="relative p-2 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 transition-colors duration-200 cursor-pointer"
           aria-label="Notificações"
         >
-          <Bell className="w-5 h-5" />
+          <Bell className={cn("w-5 h-5 transition-transform", bellRinging && "animate-bell-ring")} />
           {unreadCount > 0 && (
             <span className={cn(
               "absolute top-1 right-1 flex items-center justify-center",
-              "w-4 h-4 rounded-full bg-error text-white text-[10px] font-bold leading-none"
+              "w-4 h-4 rounded-full bg-error text-white text-[10px] font-bold leading-none",
+              "animate-glow-pulse"
             )}>
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>

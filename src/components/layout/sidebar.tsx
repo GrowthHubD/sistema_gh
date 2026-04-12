@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUiSound } from "@/hooks/use-ui-sound";
 import type { SystemModule, UserRole } from "@/types";
 
 interface SidebarProps {
@@ -69,6 +70,7 @@ export function Sidebar({
   userRole,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { playSound } = useUiSound();
 
   const filteredItems = NAV_ITEMS.filter((item) =>
     allowedModules.includes(item.module)
@@ -114,7 +116,7 @@ export function Sidebar({
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-        {filteredItems.map((item) => {
+        {filteredItems.map((item, idx) => {
           const Icon = item.icon;
           const active = isActive(item.href);
 
@@ -122,21 +124,26 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              onClick={onMobileClose}
+              onClick={() => {
+                if (!active) playSound("click");
+                onMobileClose();
+              }}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200 cursor-pointer group",
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer group",
+                "animate-slide-up opacity-0 [animation-fill-mode:forwards]",
+                `stagger-${Math.min(idx + 1, 12)}`,
                 active
                   ? "bg-primary/10 text-primary"
-                  : "text-muted hover:text-foreground hover:bg-surface-2"
+                  : "text-muted hover:text-foreground hover:bg-surface-2 hover:translate-x-0.5"
               )}
               title={collapsed ? item.title : undefined}
             >
               <Icon
                 className={cn(
-                  "w-5 h-5 shrink-0 transition-colors duration-200",
+                  "w-5 h-5 shrink-0 transition-all duration-200",
                   active
                     ? "text-primary"
-                    : "text-muted group-hover:text-foreground"
+                    : "text-muted group-hover:text-foreground group-hover:scale-110"
                 )}
               />
               {!collapsed && <span>{item.title}</span>}
