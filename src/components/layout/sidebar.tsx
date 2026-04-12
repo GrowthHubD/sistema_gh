@@ -130,7 +130,7 @@ export function Sidebar({
               }}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer group",
-                "animate-slide-up opacity-0 [animation-fill-mode:forwards]",
+                "animate-slide-up",
                 `stagger-${Math.min(idx + 1, 12)}`,
                 active
                   ? "bg-primary/10 text-primary"

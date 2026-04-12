@@ -236,7 +236,7 @@ body {
 }
 
 .animate-slide-up {
-  animation: slide-up 250ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: slide-up 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* Bouncy entrance for success states / badges */
