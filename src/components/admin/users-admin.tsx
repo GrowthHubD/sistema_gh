@@ -379,6 +379,13 @@ export function UsersAdmin({ initialUsers, initialPermissions, currentUserId }: 
                             onChange={(e) => handleUserFieldChange("jobTitle", e.target.value)}
                             className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary transition-colors" />
                         </div>
+                        <div>
+                          <label className="block text-label text-muted mb-1">Telefone</label>
+                          <input type="text" value={editingUser!.phone ?? ""}
+                            onChange={(e) => handleUserFieldChange("phone", e.target.value)}
+                            placeholder="5511999999999"
+                            className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary transition-colors font-mono" />
+                        </div>
                         <div className="flex items-end">
                           <label className="flex items-center gap-2 cursor-pointer pb-1.5">
                             <input type="checkbox" checked={editingUser!.isActive}
