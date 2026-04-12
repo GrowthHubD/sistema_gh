@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, BookOpen, Folder, FileText, Edit, Trash2, Loader2, Search, Eye, EyeOff } from "lucide-react";
+import { Plus, BookOpen, Folder, FileText, Edit, Trash2, Loader2, Search, Eye, EyeOff, FolderPlus } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -49,9 +49,12 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   study: { label: "Estudo", color: "bg-secondary/10 text-secondary" },
 };
 
+const slugify = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 100);
+
 export function BlogList({ initialCategories, initialPosts, canEdit, canDelete, currentUserId }: BlogListProps) {
   const [posts, setPosts] = useState(initialPosts);
-  const [categories] = useState(initialCategories);
+  const [categories, setCategories] = useState(initialCategories);
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"folders" | "list">("folders");
@@ -60,6 +63,7 @@ export function BlogList({ initialCategories, initialPosts, canEdit, canDelete, 
   const [viewingPost, setViewingPost] = useState<Post & { content?: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [catModalOpen, setCatModalOpen] = useState(false);
 
   const filtered = posts.filter((p) => {
     const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase());
@@ -230,12 +234,20 @@ export function BlogList({ initialCategories, initialPosts, canEdit, canDelete, 
             </div>
           </div>
           {canEdit && (
-            <button
-              onClick={() => { setEditingPost(null); setModalOpen(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium cursor-pointer shrink-0"
-            >
-              <Plus className="w-4 h-4" /> Novo Post
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCatModalOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 border border-border text-foreground rounded-lg hover:bg-surface-2 transition-colors text-sm font-medium cursor-pointer shrink-0"
+              >
+                <FolderPlus className="w-4 h-4" /> Nova categoria
+              </button>
+              <button
+                onClick={() => { setEditingPost(null); setModalOpen(true); }}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium cursor-pointer shrink-0"
+              >
+                <Plus className="w-4 h-4" /> Novo Post
+              </button>
+            </div>
           )}
         </div>
 
@@ -363,6 +375,17 @@ export function BlogList({ initialCategories, initialPosts, canEdit, canDelete, 
         />
       )}
 
+      {catModalOpen && (
+        <CategoryModal
+          categories={categories}
+          onClose={() => setCatModalOpen(false)}
+          onSuccess={(cat) => {
+            setCategories((prev) => [...prev, cat].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)));
+            setCatModalOpen(false);
+          }}
+        />
+      )}
+
       <ConfirmDialog
         open={!!pendingDelete}
         title="Excluir post"
@@ -374,7 +397,128 @@ export function BlogList({ initialCategories, initialPosts, canEdit, canDelete, 
   );
 }
 
-// ── Post Viewer ──────────────────────────────────────────────────────────────
+// ── Category Modal ───────────────────────────────────────────────────────────
+
+function CategoryModal({
+  categories,
+  onClose,
+  onSuccess,
+}: {
+  categories: Category[];
+  onClose: () => void;
+  onSuccess: (cat: Category) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", slug: "", description: "", parentId: "", order: 0 });
+
+  // Auto-generate slug
+  const handleNameChange = (name: string) => {
+    setForm((f) => ({ ...f, name, slug: slugify(name) }));
+  };
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/blog/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          slug: form.slug,
+          description: form.description || null,
+          parentId: form.parentId || null,
+          order: form.order,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        onSuccess(data.category);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Erro ao criar categoria.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const parentOptions = categories
+    .filter((c) => !c.parentId)
+    .map((c) => ({ value: c.id, label: c.name }));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-surface rounded-xl border border-border w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-h3 text-foreground">Nova Categoria</h2>
+          <button onClick={onClose} className="text-muted hover:text-foreground cursor-pointer text-lg leading-none">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3">
+          <div>
+            <label className="block text-label text-muted mb-1">Nome</label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              required
+              placeholder="Ex: Processos internos"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-label text-muted mb-1">Slug</label>
+            <input
+              type="text"
+              value={form.slug}
+              onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
+              required
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:border-primary transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-label text-muted mb-1">Categoria pai (opcional)</label>
+            <select
+              value={form.parentId}
+              onChange={(e) => setForm((f) => ({ ...f, parentId: e.target.value }))}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer"
+            >
+              <option value="">Nenhuma (categoria raiz)</option>
+              {parentOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-label text-muted mb-1">Descrição (opcional)</label>
+            <input
+              type="text"
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="Breve descrição…"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
+            />
+          </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 rounded-lg border border-border text-sm text-muted hover:text-foreground hover:bg-surface-2 transition-colors cursor-pointer">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium cursor-pointer disabled:opacity-50">
+              {saving ? "Criando…" : "Criar categoria"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Post Viewer ───────────────────────────────────────────────────────────────
 
 function PostViewerModal({
   post,

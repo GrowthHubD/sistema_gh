@@ -155,7 +155,7 @@ export async function uploadFileToDrive(
   return {
     id: fileId,
     webViewLink: `https://drive.google.com/file/d/${fileId}/view`,
-    embedUrl: `https://drive.google.com/uc?export=view&id=${fileId}`,
+    embedUrl: `https://lh3.googleusercontent.com/d/${fileId}`,
   };
 }
 
