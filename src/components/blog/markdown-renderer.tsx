@@ -80,15 +80,11 @@ function renderBlock(block: string, idx: number): React.ReactNode {
   if (headMatch) {
     const level = headMatch[1].length;
     const text = headMatch[2];
-    const classes = [
-      "font-bold text-foreground",
-      "text-2xl mt-6 mb-2",
-      "text-xl mt-5 mb-2",
-      "text-lg mt-4 mb-1",
-      "text-base mt-3 mb-1",
-    ][level];
-    const Tag = (`h${level}`) as keyof JSX.IntrinsicElements;
-    return <Tag key={idx} className={classes}>{parseInline(text)}</Tag>;
+    const inline = parseInline(text);
+    if (level === 1) return <h1 key={idx} className="text-2xl font-bold text-foreground mt-6 mb-2">{inline}</h1>;
+    if (level === 2) return <h2 key={idx} className="text-xl font-bold text-foreground mt-5 mb-2">{inline}</h2>;
+    if (level === 3) return <h3 key={idx} className="text-lg font-semibold text-foreground mt-4 mb-1">{inline}</h3>;
+    return <h4 key={idx} className="text-base font-semibold text-foreground mt-3 mb-1">{inline}</h4>;
   }
 
   // Horizontal rule
