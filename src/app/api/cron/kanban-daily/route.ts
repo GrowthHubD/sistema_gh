@@ -109,12 +109,11 @@ export async function GET(request: NextRequest) {
           // Prepend @mention for group
           const fullMessage = `@${data.phone}\n${message}`;
 
-          await fetch(`${baseUrl}/sendText`, {
+          await fetch(`${baseUrl}/send/text`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "SessionKey": wNum.uazapiSession,
-              "Token": wNum.uazapiToken,
+              "Authorization": `Bearer ${wNum.uazapiToken}`,
             },
             body: JSON.stringify({
               phone: groupJid,
@@ -141,12 +140,11 @@ export async function GET(request: NextRequest) {
             tarefas: taskLines,
           });
 
-          await fetch(`${baseUrl}/sendText`, {
+          await fetch(`${baseUrl}/send/text`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "SessionKey": wNum.uazapiSession,
-              "Token": wNum.uazapiToken,
+              "Authorization": `Bearer ${wNum.uazapiToken}`,
             },
             body: JSON.stringify({ phone: data.phone, message }),
           }).catch(() => null);
