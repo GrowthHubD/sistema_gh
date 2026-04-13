@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { kanbanTask } from "@/lib/db/schema/kanban";
-import { user, session as sessionTable } from "@/lib/db/schema/users";
+import { user } from "@/lib/db/schema/users";
 import { whatsappNumber } from "@/lib/db/schema/crm";
 import { messageTemplate } from "@/lib/db/schema/settings";
-import { eq, and } from "drizzle-orm";
-import { format } from "date-fns";
+import { eq, and, lt } from "drizzle-orm";
+import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const PRIORITY_EMOJI: Record<string, string> = {
@@ -15,11 +15,38 @@ const PRIORITY_EMOJI: Record<string, string> = {
 const DEFAULT_DAILY_TEMPLATE =
   "📋 *Tarefas de hoje, {{data}}*\n\nOlá, {{nome}}! Você tem {{qtd}} tarefa(s) para hoje:\n\n{{tarefas}}\n\n_Growth Hub Manager_";
 
+const DEFAULT_DAY_BEFORE_TEMPLATE =
+  "⏰ *Lembrete: tarefa(s) vencem amanhã!*\n\nOlá, {{nome}}! Você tem {{qtd}} tarefa(s) vencendo amanhã ({{data}}):\n\n{{tarefas}}\n\n_Growth Hub Manager_";
+
+const DEFAULT_OVERDUE_TEMPLATE =
+  "🚨 *Tarefa(s) atrasada(s)!*\n\nOlá, {{nome}}! Você tem {{qtd}} tarefa(s) com prazo vencido:\n\n{{tarefas}}\n\nAtualize ou conclua o quanto antes.\n\n_Growth Hub Manager_";
+
 function applyTemplate(template: string, vars: Record<string, string>): string {
   return Object.entries(vars).reduce(
     (msg, [key, val]) => msg.replaceAll(`{{${key}}}`, val),
     template
   );
+}
+
+type TaskRow = {
+  id: string;
+  title: string;
+  priority: string;
+  dueDate?: string | null;
+  assignedTo: string;
+  assigneeName: string;
+  assigneePhone: string | null;
+};
+
+function groupByUser(tasks: TaskRow[]) {
+  const map = new Map<string, { name: string; phone: string | null; tasks: TaskRow[] }>();
+  for (const task of tasks) {
+    if (!map.has(task.assignedTo)) {
+      map.set(task.assignedTo, { name: task.assigneeName, phone: task.assigneePhone, tasks: [] });
+    }
+    map.get(task.assignedTo)!.tasks.push(task);
+  }
+  return map;
 }
 
 // Called by Cloudflare Cron Trigger: "0 7 * * *" (daily 7h UTC)
@@ -30,40 +57,42 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const today = format(new Date(), "yyyy-MM-dd");
-    const todayFormatted = format(new Date(), "dd 'de' MMMM", { locale: ptBR });
+    const now = new Date();
+    const today = format(now, "yyyy-MM-dd");
+    const tomorrow = format(addDays(now, 1), "yyyy-MM-dd");
+    const todayFormatted = format(now, "dd 'de' MMMM", { locale: ptBR });
+    const tomorrowFormatted = format(addDays(now, 1), "dd 'de' MMMM", { locale: ptBR });
 
-    // Fetch tasks due today, not completed
+    const taskSelect = {
+      id: kanbanTask.id,
+      title: kanbanTask.title,
+      priority: kanbanTask.priority,
+      dueDate: kanbanTask.dueDate,
+      assignedTo: kanbanTask.assignedTo,
+      assigneeName: user.name,
+      assigneePhone: user.phone,
+    };
+
+    // ── 1. Tasks due today ──
     const dueTasks = await db
-      .select({
-        id: kanbanTask.id,
-        title: kanbanTask.title,
-        priority: kanbanTask.priority,
-        assignedTo: kanbanTask.assignedTo,
-        assigneeName: user.name,
-        assigneePhone: user.phone,
-      })
+      .select(taskSelect)
       .from(kanbanTask)
       .innerJoin(user, eq(kanbanTask.assignedTo, user.id))
-      .where(
-        and(
-          eq(kanbanTask.dueDate, today),
-          eq(kanbanTask.isCompleted, false)
-        )
-      );
+      .where(and(eq(kanbanTask.dueDate, today), eq(kanbanTask.isCompleted, false)));
 
-    if (dueTasks.length === 0) {
-      return NextResponse.json({ sent: 0, message: "No tasks due today" });
-    }
+    // ── 2. Tasks due tomorrow (day-before alert) ──
+    const tomorrowTasks = await db
+      .select(taskSelect)
+      .from(kanbanTask)
+      .innerJoin(user, eq(kanbanTask.assignedTo, user.id))
+      .where(and(eq(kanbanTask.dueDate, tomorrow), eq(kanbanTask.isCompleted, false)));
 
-    // Group by assignee
-    const byUser = new Map<string, { name: string; phone: string | null; tasks: typeof dueTasks }>();
-    for (const task of dueTasks) {
-      if (!byUser.has(task.assignedTo)) {
-        byUser.set(task.assignedTo, { name: task.assigneeName, phone: task.assigneePhone, tasks: [] });
-      }
-      byUser.get(task.assignedTo)!.tasks.push(task);
-    }
+    // ── 3. Overdue tasks (past due, not completed) ──
+    const overdueTasks = await db
+      .select(taskSelect)
+      .from(kanbanTask)
+      .innerJoin(user, eq(kanbanTask.assignedTo, user.id))
+      .where(and(lt(kanbanTask.dueDate, today), eq(kanbanTask.isCompleted, false)));
 
     const baseUrl = process.env.UAZAPI_BASE_URL;
     const groupJid = process.env.REMINDER_GROUP_JID ?? "";
@@ -74,96 +103,90 @@ export async function GET(request: NextRequest) {
       .where(eq(whatsappNumber.isActive, true))
       .limit(1);
 
-    // Fetch message template (fall back to default if not in DB)
-    let templateBody = DEFAULT_DAILY_TEMPLATE;
+    // ── Fetch templates ──
+    let dailyTemplate = DEFAULT_DAILY_TEMPLATE;
+    let dayBeforeTemplate = DEFAULT_DAY_BEFORE_TEMPLATE;
+    let overdueTemplate = DEFAULT_OVERDUE_TEMPLATE;
     try {
-      const [tmpl] = await db
-        .select({ body: messageTemplate.body })
-        .from(messageTemplate)
-        .where(eq(messageTemplate.id, "daily_reminder"))
-        .limit(1);
-      if (tmpl) templateBody = tmpl.body;
+      const [daily, before, overdue] = await Promise.all([
+        db.select({ body: messageTemplate.body }).from(messageTemplate).where(eq(messageTemplate.id, "daily_reminder")).limit(1),
+        db.select({ body: messageTemplate.body }).from(messageTemplate).where(eq(messageTemplate.id, "before_reminder")).limit(1),
+        db.select({ body: messageTemplate.body }).from(messageTemplate).where(eq(messageTemplate.id, "overdue_alert")).limit(1),
+      ]);
+      if (daily[0]) dailyTemplate = daily[0].body;
+      if (before[0]) dayBeforeTemplate = before[0].body;
+      if (overdue[0]) overdueTemplate = overdue[0].body;
     } catch {
-      // Table may not exist yet — use default
+      // Table may not exist yet — use defaults
     }
 
-    let sentCount = 0;
+    // ── Helper: send alerts to all users in a group ──
+    async function sendAlerts(
+      byUser: ReturnType<typeof groupByUser>,
+      templateBody: string,
+      dateLabel: string
+    ): Promise<number> {
+      if (!baseUrl || !wNum) return 0;
+      let count = 0;
 
-    if (baseUrl && wNum) {
-      if (groupJid) {
-        // ── Group mode: one message per user, @mention them in the group ──
-        for (const [, data] of byUser) {
-          if (!data.phone) continue;
+      for (const [, data] of byUser) {
+        if (!data.phone) continue;
 
-          const taskLines = data.tasks
-            .map((t) => `${PRIORITY_EMOJI[t.priority] ?? "•"} ${t.title}`)
-            .join("\n");
+        const taskLines = data.tasks
+          .map((t) => `${PRIORITY_EMOJI[t.priority] ?? "•"} ${t.title}`)
+          .join("\n");
 
-          const message = applyTemplate(templateBody, {
-            nome: data.name.split(" ")[0],
-            data: todayFormatted,
-            qtd: String(data.tasks.length),
-            tarefas: taskLines,
-          });
+        const message = applyTemplate(templateBody, {
+          nome: data.name.split(" ")[0],
+          data: dateLabel,
+          qtd: String(data.tasks.length),
+          tarefas: taskLines,
+        });
 
-          // Prepend @mention for group
-          const fullMessage = `@${data.phone}\n${message}`;
-
+        if (groupJid) {
           await fetch(`${baseUrl}/send/text`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${wNum.uazapiToken}`,
-            },
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${wNum.uazapiToken}` },
             body: JSON.stringify({
               phone: groupJid,
-              message: fullMessage,
+              message: `@${data.phone}\n${message}`,
               mentionedJid: [`${data.phone}@s.whatsapp.net`],
             }),
           }).catch(() => null);
-
-          sentCount++;
-        }
-      } else {
-        // ── Individual mode: send directly to each person's phone ──
-        for (const [, data] of byUser) {
-          if (!data.phone) continue;
-
-          const taskLines = data.tasks
-            .map((t) => `${PRIORITY_EMOJI[t.priority] ?? "•"} ${t.title}`)
-            .join("\n");
-
-          const message = applyTemplate(templateBody, {
-            nome: data.name.split(" ")[0],
-            data: todayFormatted,
-            qtd: String(data.tasks.length),
-            tarefas: taskLines,
-          });
-
+        } else {
           await fetch(`${baseUrl}/send/text`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${wNum.uazapiToken}`,
-            },
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${wNum.uazapiToken}` },
             body: JSON.stringify({ phone: data.phone, message }),
           }).catch(() => null);
-
-          sentCount++;
         }
+
+        count++;
       }
+      return count;
     }
 
-    // Mark tasks as whatsappSent
+    const [sentToday, sentTomorrow, sentOverdue] = await Promise.all([
+      sendAlerts(groupByUser(dueTasks), dailyTemplate, todayFormatted),
+      sendAlerts(groupByUser(tomorrowTasks), dayBeforeTemplate, tomorrowFormatted),
+      sendAlerts(groupByUser(overdueTasks), overdueTemplate, ""),
+    ]);
+
+    // Mark today's tasks as whatsappSent
     for (const task of dueTasks) {
-      await db
-        .update(kanbanTask)
-        .set({ whatsappSent: true })
-        .where(eq(kanbanTask.id, task.id));
+      await db.update(kanbanTask).set({ whatsappSent: true }).where(eq(kanbanTask.id, task.id));
     }
 
-    return NextResponse.json({ sent: sentCount, tasks: dueTasks.length, mode: groupJid ? "group" : "individual" });
-  } catch (error) {
+    return NextResponse.json({
+      sentToday,
+      sentTomorrow,
+      sentOverdue,
+      tasksToday: dueTasks.length,
+      tasksTomorrow: tomorrowTasks.length,
+      tasksOverdue: overdueTasks.length,
+      mode: groupJid ? "group" : "individual",
+    });
+  } catch {
     console.error("[CRON] kanban-daily failed:", { operation: "daily_dispatch" });
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }

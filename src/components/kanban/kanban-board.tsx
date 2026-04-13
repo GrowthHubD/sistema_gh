@@ -7,10 +7,11 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { Plus, RefreshCw, CalendarDays } from "lucide-react";
+import { Plus, RefreshCw, CalendarDays, AlertTriangle, Calendar, CheckCircle2, Pencil, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, parseISO, isToday } from "date-fns";
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, parseISO, isToday, startOfDay, differenceInCalendarDays, format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { TaskCard } from "./task-card";
 import { TaskModal } from "./task-modal";
 
@@ -46,6 +47,94 @@ interface KanbanBoardProps {
   currentUserId: string;
   canEdit: boolean;
   canDelete: boolean;
+}
+
+function KanbanOverdueColumn({
+  tasks, onEdit, onDelete, onToggleComplete, canEdit, canDelete,
+}: {
+  tasks: Task[];
+  onEdit: (task: Task) => void;
+  onDelete: (id: string) => void;
+  onToggleComplete: (id: string, completed: boolean) => void;
+  canEdit: boolean;
+  canDelete: boolean;
+}) {
+  const todayStart = startOfDay(new Date());
+
+  return (
+    <div className="flex flex-col w-72 shrink-0">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-error shrink-0" />
+          <h3 className="text-sm font-semibold text-error">Atrasado</h3>
+          <span className="text-xs bg-error/10 text-error px-1.5 py-0.5 rounded-md">{tasks.length}</span>
+        </div>
+      </div>
+      <div className="flex-1 flex flex-col gap-2 min-h-[200px] rounded-xl p-2 bg-error/5 border border-error/30">
+        {tasks.map((task) => {
+          const dueDateObj = new Date(task.dueDate! + "T12:00:00");
+          const daysLate = differenceInCalendarDays(todayStart, dueDateObj);
+
+          return (
+            <div key={task.id} className="bg-surface-2 border border-error/30 rounded-lg p-3 group transition-all hover:border-error/60">
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-2">
+                    <button
+                      onClick={() => onToggleComplete(task.id, true)}
+                      className="mt-0.5 shrink-0 text-muted hover:text-success transition-colors cursor-pointer"
+                      title="Marcar como concluída"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
+                    <p className="text-sm font-medium text-foreground leading-snug">{task.title}</p>
+                  </div>
+                  <div className="flex items-center gap-3 mt-2 pl-6">
+                    <span className="text-xs text-error font-medium flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {daysLate}d atrasado
+                    </span>
+                    <span className="text-xs text-muted flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {format(dueDateObj, "dd/MM", { locale: ptBR })}
+                    </span>
+                    {task.assigneeName && (
+                      <div className="flex items-center gap-1 ml-auto">
+                        <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                          <span className="text-[8px] font-bold text-primary">
+                            {task.assigneeName.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  {canEdit && (
+                    <button onClick={() => onEdit(task)}
+                      className="p-1 rounded text-muted hover:text-foreground hover:bg-surface transition-colors cursor-pointer">
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button onClick={() => onDelete(task.id)}
+                      className="p-1 rounded text-muted hover:text-error hover:bg-error/10 transition-colors cursor-pointer">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {tasks.length === 0 && (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-small text-muted/50">Sem atrasos</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function KanbanColumnDropzone({
@@ -111,7 +200,15 @@ export function KanbanBoard({ initialColumns, initialTasks, users, currentUserId
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const now = new Date();
+  const todayStart = startOfDay(now);
+
+  const isTaskOverdue = (t: Task) =>
+    !t.isCompleted && !!t.dueDate && new Date(t.dueDate + "T12:00:00") < todayStart;
+
+  const overdueTasks = tasks.filter(isTaskOverdue);
+
   const timeFilteredTasks = tasks.filter((t) => {
+    if (isTaskOverdue(t)) return false; // overdue tasks shown in their own column
     if (timeFilter === "all") return true;
     if (!t.dueDate) return false;
     const due = parseISO(t.dueDate);
@@ -162,6 +259,19 @@ export function KanbanBoard({ initialColumns, initialTasks, users, currentUserId
         const reordered = arrayMove(col, oldIdx, newIdx);
         setTasks((prev) => [...prev.filter((t) => t.columnId !== moved.columnId), ...reordered]);
       }
+      return;
+    }
+
+    // Auto-complete when dropped into the "Concluído" column
+    const destColumn = columns.find((c) => c.id === moved.columnId);
+    const isDoneColumn = destColumn?.name.toLowerCase().includes("conclu");
+    if (isDoneColumn && !moved.isCompleted) {
+      setTasks((prev) => prev.map((t) => t.id === activeId ? { ...t, isCompleted: true } : t));
+      await fetch(`/api/kanban/tasks/${activeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ columnId: moved.columnId, isCompleted: true }),
+      }).catch(() => null);
       return;
     }
 
@@ -266,6 +376,14 @@ export function KanbanBoard({ initialColumns, initialTasks, users, currentUserId
                 onToggleComplete={handleToggleComplete}
                 canEdit={canEdit} canDelete={canDelete} />
             ))}
+            <KanbanOverdueColumn
+              tasks={overdueTasks}
+              onEdit={(t) => { setEditingTask(t); setModalOpen(true); }}
+              onDelete={handleDelete}
+              onToggleComplete={handleToggleComplete}
+              canEdit={canEdit}
+              canDelete={canDelete}
+            />
           </div>
           <DragOverlay>
             {activeTask && (
