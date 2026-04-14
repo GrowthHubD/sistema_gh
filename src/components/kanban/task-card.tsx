@@ -29,10 +29,18 @@ interface TaskCardProps {
 }
 
 const PRIORITY_DOT: Record<string, string> = {
-  urgent: "bg-error animate-pulse",
-  high: "bg-error",
+  urgent: "bg-red-800",
+  high:   "bg-orange-500",
   medium: "bg-warning",
-  low: "bg-success",
+  low:    "bg-success",
+};
+
+// bg + border classes per priority (completed and overdue handled separately)
+const PRIORITY_CARD: Record<string, string> = {
+  urgent: "bg-red-950/25 border-red-800/50 hover:border-red-700",
+  high:   "bg-orange-500/15 border-orange-500/40 hover:border-orange-400",
+  medium: "bg-warning/15 border-warning/40 hover:border-warning/70",
+  low:    "bg-success/15 border-success/40 hover:border-success/70",
 };
 
 export function TaskCard({ task, onEdit, onDelete, onToggleComplete, canEdit, canDelete }: TaskCardProps) {
@@ -53,9 +61,8 @@ export function TaskCard({ task, onEdit, onDelete, onToggleComplete, canEdit, ca
         "hover:shadow-[0_0_15px_rgba(34,197,94,0.15)]",
         isDragging && "opacity-40",
         task.isCompleted && "opacity-60 bg-surface-2 border-border",
-        !task.isCompleted && isOverdue && "bg-error/20 border-error/60 hover:border-error",
-        !task.isCompleted && !isOverdue && task.priority === "urgent" && "bg-warning/20 border-warning/60 hover:border-warning",
-        !task.isCompleted && !isOverdue && task.priority !== "urgent" && "bg-surface-2 border-border hover:border-primary/50"
+        !task.isCompleted && isOverdue && "bg-[#FF4757]/25 border-[#FF4757]/60 hover:border-[#FF4757]",
+        !task.isCompleted && !isOverdue && (PRIORITY_CARD[task.priority] ?? PRIORITY_CARD.medium)
       )}
     >
       <div className="flex items-start gap-2">

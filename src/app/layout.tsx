@@ -26,6 +26,11 @@ export const metadata: Metadata = {
   description:
     "AMS — Sistema de gestão centralizado da Growth Hub. Controle financeiro, comercial, CRM e tarefas em uma única plataforma.",
   robots: { index: false, follow: false },
+  icons: {
+    icon: "/images/logo-icon.png",
+    shortcut: "/images/logo-icon.png",
+    apple: "/images/logo-icon.png",
+  },
 };
 
 export default function RootLayout({
