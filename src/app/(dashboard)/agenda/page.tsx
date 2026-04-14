@@ -7,6 +7,7 @@ import { format, getDaysInMonth, startOfMonth, getDay, isSameDay, isToday, parse
 import { ptBR } from "date-fns/locale";
 import Link from "next/link";
 import { TaskModal } from "@/components/kanban/task-modal";
+import { CalendarEventModal, type GoogleEventData } from "@/components/agenda/calendar-event-modal";
 
 interface KanbanTask {
   id: string;
@@ -23,13 +24,7 @@ interface KanbanTask {
   order: number;
 }
 
-interface GoogleEvent {
-  id: string;
-  summary?: string;
-  start: { date?: string; dateTime?: string };
-  end: { date?: string; dateTime?: string };
-  htmlLink?: string;
-}
+type GoogleEvent = GoogleEventData;
 
 interface TeamUser { id: string; name: string; }
 interface Column { id: string; name: string; }
@@ -81,6 +76,7 @@ export default function AgendaPage() {
   const [columns, setColumns] = useState<Column[]>([]);
   const [allUsers, setAllUsers] = useState<TeamUser[]>([]);
   const [modal, setModal] = useState<ModalState>({ open: false });
+  const [calModal, setCalModal] = useState<{ open: boolean; event: GoogleEvent | null }>({ open: false, event: null });
   const dragTaskId = useRef<string | null>(null);
 
   // Fetch kanban meta (columns + users) once
@@ -180,6 +176,18 @@ export default function AgendaPage() {
       }
       return [...prev, t];
     });
+  };
+
+  const handleTaskDeleted = (id: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const handleCalEventUpdated = (updated: GoogleEvent) => {
+    setGoogleEvents((prev) => prev.map((e) => e.id === updated.id ? updated : e));
+  };
+
+  const handleCalEventDeleted = (id: string) => {
+    setGoogleEvents((prev) => prev.filter((e) => e.id !== id));
   };
 
   // Resolve modal initialData
@@ -397,11 +405,21 @@ export default function AgendaPage() {
                 <p className="text-xs font-medium text-muted uppercase tracking-wide mb-2">Google Calendar</p>
                 <div className="space-y-2">
                   {selectedEvents.map((e) => (
-                    <div key={e.id} className="p-3 rounded-lg bg-[#4285F4]/10 border-l-2 border-[#4285F4]">
+                    <button
+                      key={e.id}
+                      onClick={() => setCalModal({ open: true, event: e })}
+                      className="w-full p-3 rounded-lg bg-[#4285F4]/10 border-l-2 border-[#4285F4] text-left cursor-pointer hover:bg-[#4285F4]/20 transition-colors"
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-medium text-foreground">{e.summary ?? "Evento"}</p>
                         {e.htmlLink && (
-                          <a href={e.htmlLink} target="_blank" rel="noopener noreferrer" className="text-[#4285F4] hover:opacity-80 shrink-0">
+                          <a
+                            href={e.htmlLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(ev) => ev.stopPropagation()}
+                            className="text-[#4285F4] hover:opacity-80 shrink-0"
+                          >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </a>
                         )}
@@ -412,7 +430,7 @@ export default function AgendaPage() {
                           {e.end.dateTime && ` – ${format(parseISO(e.end.dateTime), "HH:mm")}`}
                         </p>
                       )}
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -443,11 +461,21 @@ export default function AgendaPage() {
         open={modal.open}
         onClose={() => setModal({ open: false })}
         onSuccess={handleTaskSaved}
+        onDelete={handleTaskDeleted}
         columns={columns}
         users={allUsers}
         currentUserId={currentUserId}
         mode={modal.open ? modal.mode : "create"}
         initialData={modalInitialData}
+      />
+
+      {/* Google Calendar event modal */}
+      <CalendarEventModal
+        open={calModal.open}
+        event={calModal.event}
+        onClose={() => setCalModal({ open: false, event: null })}
+        onUpdated={handleCalEventUpdated}
+        onDeleted={handleCalEventDeleted}
       />
     </div>
   );

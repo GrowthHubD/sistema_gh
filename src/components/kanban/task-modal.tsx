@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Loader2, Clock } from "lucide-react";
+import { X, Loader2, Clock, Trash2 } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { format, addHours } from "date-fns";
@@ -24,6 +24,7 @@ interface TaskModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (task: Record<string, unknown>) => void;
+  onDelete?: (id: string) => void;
   columns: Column[];
   users: TeamUser[];
   currentUserId: string;
@@ -61,7 +62,7 @@ function defaultEndTime(start: string): string {
   return format(end, "HH:mm");
 }
 
-export function TaskModal({ open, onClose, onSuccess, columns, users, currentUserId, initialData, mode = "create" }: TaskModalProps) {
+export function TaskModal({ open, onClose, onSuccess, onDelete, columns, users, currentUserId, initialData, mode = "create" }: TaskModalProps) {
   const [form, setForm] = useState<TaskFormData>({
     ...EMPTY,
     assignedTo: currentUserId,
@@ -69,6 +70,7 @@ export function TaskModal({ open, onClose, onSuccess, columns, users, currentUse
     ...initialData,
   });
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Reset form when modal opens with new initialData
   useEffect(() => {
@@ -84,6 +86,24 @@ export function TaskModal({ open, onClose, onSuccess, columns, users, currentUse
   }, [open, initialData?.id]);
 
   if (!open) return null;
+
+  const handleDelete = async () => {
+    if (!initialData?.id || !onDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/kanban/tasks/${initialData.id}`, { method: "DELETE" });
+      if (res.ok) {
+        onDelete(initialData.id);
+        onClose();
+      } else {
+        toast.error("Erro ao excluir tarefa.");
+      }
+    } catch {
+      toast.error("Erro de conexão.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,6 +229,12 @@ export function TaskModal({ open, onClose, onSuccess, columns, users, currentUse
           </div>
 
           <div className="flex gap-3 pt-2">
+            {mode === "edit" && onDelete && (
+              <button type="button" onClick={handleDelete} disabled={deleting}
+                className="px-3 py-2 rounded-lg border border-error/40 text-error hover:bg-error/10 transition-colors text-sm cursor-pointer disabled:opacity-50 flex items-center gap-1.5">
+                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              </button>
+            )}
             <button type="button" onClick={onClose}
               className="flex-1 px-4 py-2 rounded-lg border border-border text-muted hover:text-foreground transition-colors text-sm cursor-pointer">Cancelar</button>
             <button type="submit" disabled={loading}
