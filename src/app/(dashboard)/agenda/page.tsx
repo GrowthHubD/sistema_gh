@@ -329,7 +329,11 @@ export default function AgendaPage() {
                           </div>
                         ))}
                         {dayEvents.slice(0, total > 2 ? 1 : 2).map((e) => (
-                          <div key={e.id} className="text-[10px] px-1.5 py-0.5 rounded truncate bg-[#4285F4]/15 text-[#4285F4] border-l-2 border-[#4285F4]">
+                          <div
+                            key={e.id}
+                            onClick={(ev) => { ev.stopPropagation(); setSelectedDate(date); setCalModal({ open: true, event: e }); }}
+                            className="text-[10px] px-1.5 py-0.5 rounded truncate bg-[#4285F4]/15 text-[#4285F4] border-l-2 border-[#4285F4] cursor-pointer hover:bg-[#4285F4]/30 transition-colors"
+                          >
                             {e.summary ?? "Evento"}
                           </div>
                         ))}

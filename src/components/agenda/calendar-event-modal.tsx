@@ -12,6 +12,7 @@ export interface GoogleEventData {
   start: { date?: string; dateTime?: string };
   end: { date?: string; dateTime?: string };
   htmlLink?: string;
+  transparency?: "opaque" | "transparent";
 }
 
 interface CalendarEventModalProps {
@@ -28,6 +29,7 @@ export function CalendarEventModal({ open, event, onClose, onUpdated, onDeleted 
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [transparency, setTransparency] = useState<"opaque" | "transparent">("opaque");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -49,6 +51,7 @@ export function CalendarEventModal({ open, event, onClose, onUpdated, onDeleted 
     } else {
       setEndTime("");
     }
+    setTransparency(event.transparency ?? "opaque");
   }, [event, open]);
 
   if (!open || !event) return null;
@@ -61,7 +64,7 @@ export function CalendarEventModal({ open, event, onClose, onUpdated, onDeleted 
       const res = await fetch(`/api/agenda/calendar-events/${event.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), description: description || null, date, startTime: startTime || null, endTime: endTime || null }),
+        body: JSON.stringify({ title: title.trim(), description: description || null, date, startTime: startTime || null, endTime: endTime || null, transparency }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -175,6 +178,27 @@ export function CalendarEventModal({ open, event, onClose, onUpdated, onDeleted 
                 className="flex-1 bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[#4285F4] transition-colors"
               />
             </div>
+          </div>
+
+          {/* Transparency toggle */}
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <p className="text-sm text-foreground font-medium">Ocupar horário</p>
+              <p className="text-xs text-muted mt-0.5">
+                {transparency === "opaque" ? "Aparece como ocupado no calendário" : "Aparece como disponível no calendário"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTransparency(t => t === "opaque" ? "transparent" : "opaque")}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                transparency === "opaque" ? "bg-[#4285F4]" : "bg-border"
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                transparency === "opaque" ? "translate-x-6" : "translate-x-1"
+              }`} />
+            </button>
           </div>
 
           <div className="flex gap-3 pt-2">

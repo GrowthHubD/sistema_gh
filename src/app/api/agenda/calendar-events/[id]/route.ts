@@ -15,6 +15,7 @@ const updateSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  transparency: z.enum(["opaque", "transparent"]).optional(),
 });
 
 async function getCalendarId(userId: string): Promise<string | null> {
@@ -45,7 +46,7 @@ export async function PATCH(
     if (!calendarId) return NextResponse.json({ error: "Google Calendar não conectado" }, { status: 400 });
 
     const token = await getUserCalendarToken(session.user.id);
-    const { title, description, date, startTime, endTime } = parsed.data;
+    const { title, description, date, startTime, endTime, transparency } = parsed.data;
 
     // Build start/end — use dateTime if time is provided, otherwise all-day date
     let start: Record<string, string>;
@@ -58,7 +59,6 @@ export async function PATCH(
       end = { dateTime: `${date}T${endVal}:00`, timeZone: tz };
     } else {
       start = { date };
-      // All-day: end date must be exclusive (next day) for single-day events
       const nextDay = new Date(date + "T12:00:00");
       nextDay.setDate(nextDay.getDate() + 1);
       end = { date: nextDay.toISOString().slice(0, 10) };
@@ -69,6 +69,7 @@ export async function PATCH(
       description: description ?? "",
       start,
       end,
+      transparency: transparency ?? "opaque",
     };
 
     const res = await fetch(
