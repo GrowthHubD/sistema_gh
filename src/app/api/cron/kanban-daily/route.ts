@@ -146,18 +146,19 @@ export async function GET(request: NextRequest) {
         if (groupJid) {
           await fetch(`${baseUrl}/send/text`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${wNum.uazapiToken}` },
+            headers: { "Content-Type": "application/json", "token": wNum.uazapiToken },
             body: JSON.stringify({
-              phone: groupJid,
-              message: `@${data.phone}\n${message}`,
+              number: groupJid,
+              text: `@${data.phone}\n${message}`,
+              isGroup: true,
               mentionedJid: [`${data.phone}@s.whatsapp.net`],
             }),
           }).catch(() => null);
         } else {
           await fetch(`${baseUrl}/send/text`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${wNum.uazapiToken}` },
-            body: JSON.stringify({ phone: data.phone, message }),
+            headers: { "Content-Type": "application/json", "token": wNum.uazapiToken },
+            body: JSON.stringify({ number: data.phone, text: message, isGroup: false }),
           }).catch(() => null);
         }
 

@@ -157,13 +157,11 @@ export async function GET(request: NextRequest) {
 
           await fetch(`${baseUrl}/send/text`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${wNum.uazapiToken}`,
-            },
+            headers: { "Content-Type": "application/json", "token": wNum.uazapiToken },
             body: JSON.stringify({
-              phone: groupJid,
-              message: `@${data.phone}\n${message}`,
+              number: groupJid,
+              text: `@${data.phone}\n${message}`,
+              isGroup: true,
               mentionedJid: [`${data.phone}@s.whatsapp.net`],
             }),
           }).catch(() => null);
@@ -191,11 +189,8 @@ export async function GET(request: NextRequest) {
 
           await fetch(`${baseUrl}/send/text`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${wNum.uazapiToken}`,
-            },
-            body: JSON.stringify({ phone: data.phone, message }),
+            headers: { "Content-Type": "application/json", "token": wNum.uazapiToken },
+            body: JSON.stringify({ number: data.phone, text: message, isGroup: false }),
           }).catch(() => null);
 
           kanbanSent++;
@@ -215,12 +210,8 @@ export async function GET(request: NextRequest) {
 
         await fetch(`${baseUrl}/send/text`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "SessionKey": wNum.uazapiSession,
-            "Token": wNum.uazapiToken,
-          },
-          body: JSON.stringify({ phone: adminGroupJid, message }),
+          headers: { "Content-Type": "application/json", "token": wNum.uazapiToken },
+          body: JSON.stringify({ number: adminGroupJid, text: message, isGroup: true }),
         }).catch(() => null);
 
         contractAlertSent = true;
