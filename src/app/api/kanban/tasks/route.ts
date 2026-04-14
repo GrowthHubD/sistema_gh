@@ -15,6 +15,8 @@ const createSchema = z.object({
   columnId: z.string().uuid(),
   assignedTo: z.string().min(1),
   dueDate: z.string().optional().nullable(),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
 });
 
@@ -50,6 +52,8 @@ export async function POST(request: NextRequest) {
         columnId: d.columnId,
         assignedTo: d.assignedTo,
         dueDate: d.dueDate ?? null,
+        startTime: d.startTime ?? null,
+        endTime: d.endTime ?? null,
         priority: d.priority,
         createdBy: session.user.id,
       })

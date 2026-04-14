@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Loader2, Clock } from "lucide-react";
 import { Select } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { format, addHours } from "date-fns";
 
 interface TaskFormData {
   title: string;
@@ -12,6 +12,8 @@ interface TaskFormData {
   columnId: string;
   assignedTo: string;
   dueDate: string;
+  startTime: string;
+  endTime: string;
   priority: "low" | "medium" | "high" | "urgent";
 }
 
@@ -35,15 +37,29 @@ const EMPTY: TaskFormData = {
   columnId: "",
   assignedTo: "",
   dueDate: "",
+  startTime: "",
+  endTime: "",
   priority: "medium",
 };
 
 const PRIORITY_OPTIONS = [
-  { value: "low", label: "Baixa", className: "text-success" },
-  { value: "medium", label: "Média", className: "text-warning" },
-  { value: "high", label: "Alta", className: "text-error" },
-  { value: "urgent", label: "Urgente", className: "text-error font-bold" },
+  { value: "low",    label: "Baixa" },
+  { value: "medium", label: "Média" },
+  { value: "high",   label: "Alta" },
+  { value: "urgent", label: "Urgente" },
 ];
+
+function defaultStartTime(): string {
+  const t = addHours(new Date(), 6);
+  return format(t, "HH:mm");
+}
+
+function defaultEndTime(start: string): string {
+  if (!start) return "";
+  const [h, m] = start.split(":").map(Number);
+  const end = new Date(0, 0, 0, h + 1, m);
+  return format(end, "HH:mm");
+}
 
 export function TaskModal({ open, onClose, onSuccess, columns, users, currentUserId, initialData, mode = "create" }: TaskModalProps) {
   const [form, setForm] = useState<TaskFormData>({
@@ -54,11 +70,30 @@ export function TaskModal({ open, onClose, onSuccess, columns, users, currentUse
   });
   const [loading, setLoading] = useState(false);
 
+  // Reset form when modal opens with new initialData
+  useEffect(() => {
+    if (open) {
+      setForm({
+        ...EMPTY,
+        assignedTo: currentUserId,
+        columnId: columns[0]?.id ?? "",
+        ...initialData,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialData?.id]);
+
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    // Item #5: default date = today, startTime = now+6h, endTime = start+1h
+    const finalDueDate = form.dueDate || format(new Date(), "yyyy-MM-dd");
+    const finalStart = form.startTime || defaultStartTime();
+    const finalEnd = form.endTime || defaultEndTime(finalStart);
+
     try {
       const url = mode === "edit" && initialData?.id
         ? `/api/kanban/tasks/${initialData.id}`
@@ -71,7 +106,9 @@ export function TaskModal({ open, onClose, onSuccess, columns, users, currentUse
           description: form.description || null,
           columnId: form.columnId,
           assignedTo: form.assignedTo,
-          dueDate: form.dueDate || null,
+          dueDate: finalDueDate,
+          startTime: finalStart || null,
+          endTime: finalEnd || null,
           priority: form.priority,
         }),
       });
@@ -123,19 +160,19 @@ export function TaskModal({ open, onClose, onSuccess, columns, users, currentUse
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-label text-muted block mb-1.5">Coluna <span className="text-error">*</span></label>
-              <Select 
-                value={form.columnId} 
+              <Select
+                value={form.columnId}
                 onChange={(val) => setForm((p) => ({ ...p, columnId: val }))}
-                options={columns.map(c => ({ value: c.id, label: c.name }))} 
-                placeholder="Selecione..." 
+                options={columns.map(c => ({ value: c.id, label: c.name }))}
+                placeholder="Selecione..."
               />
             </div>
             <div>
               <label className="text-label text-muted block mb-1.5">Prioridade</label>
-              <Select 
-                value={form.priority} 
-                onChange={(val) => setForm((p) => ({ ...p, priority: val as any }))}
-                options={PRIORITY_OPTIONS} 
+              <Select
+                value={form.priority}
+                onChange={(val) => setForm((p) => ({ ...p, priority: val as "low" | "medium" | "high" | "urgent" }))}
+                options={PRIORITY_OPTIONS}
               />
             </div>
           </div>
@@ -143,17 +180,31 @@ export function TaskModal({ open, onClose, onSuccess, columns, users, currentUse
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-label text-muted block mb-1.5">Responsável <span className="text-error">*</span></label>
-              <Select 
-                value={form.assignedTo} 
+              <Select
+                value={form.assignedTo}
                 onChange={(val) => setForm((p) => ({ ...p, assignedTo: val }))}
-                options={[{ value: "", label: "Selecionar..." }, ...users.map(u => ({ value: u.id, label: u.name }))]} 
-                placeholder="Selecionar..." 
+                options={[{ value: "", label: "Selecionar..." }, ...users.map(u => ({ value: u.id, label: u.name }))]}
+                placeholder="Selecionar..."
               />
             </div>
             <div>
               <label className="text-label text-muted block mb-1.5">Prazo</label>
               <input type="date" value={form.dueDate} onChange={set("dueDate")}
                 className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors" />
+            </div>
+          </div>
+
+          {/* Time range */}
+          <div>
+            <label className="text-label text-muted block mb-1.5 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" /> Horário <span className="text-muted/50">(opcional — padrão: hoje+6h)</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input type="time" value={form.startTime} onChange={set("startTime")}
+                className="flex-1 bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors" />
+              <span className="text-muted text-sm shrink-0">até</span>
+              <input type="time" value={form.endTime} onChange={set("endTime")}
+                className="flex-1 bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors" />
             </div>
           </div>
 

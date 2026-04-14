@@ -13,6 +13,16 @@ const TEMPLATE_DEFAULTS: Array<{ id: string; label: string; body: string }> = [
     body: "📋 *Tarefas de hoje, {{data}}*\n\nOlá, {{nome}}! Você tem {{qtd}} tarefa(s) para hoje:\n\n{{tarefas}}\n\n_Growth Hub Manager_",
   },
   {
+    id: "before_reminder",
+    label: "Alerta de tarefa para amanhã",
+    body: "⏰ *Tarefa para amanhã, {{nome}}!*\n\nVocê tem {{qtd}} tarefa(s) com prazo amanhã ({{data}}):\n\n{{tarefas}}\n\n_Growth Hub Manager_",
+  },
+  {
+    id: "overdue_alert",
+    label: "Alerta de tarefa atrasada",
+    body: "🚨 *Tarefa(s) em atraso, {{nome}}!*\n\nVocê tem {{qtd}} tarefa(s) vencida(s):\n\n{{tarefas}}\n\nResolva o quanto antes! _Growth Hub Manager_",
+  },
+  {
     id: "weekly_digest",
     label: "Resumo semanal de tarefas",
     body: "📅 *Resumo da semana ({{semana}})*\n\nOlá, {{nome}}! Você tem {{qtd}} tarefa(s) essa semana:\n\n{{tarefas}}\n\n_Growth Hub Manager_",
@@ -22,12 +32,20 @@ const TEMPLATE_DEFAULTS: Array<{ id: string; label: string; body: string }> = [
     label: "Alerta de contratos a vencer",
     body: "⚠️ *{{qtd}} contrato(s) a vencer em 30 dias:*\n\n{{contratos}}\n\n_Growth Hub Manager_",
   },
+  {
+    id: "task_intake_template",
+    label: "Formato de criação de tarefa via grupo",
+    body: "tarefa: {{descricao}}\nurgencia: {{urgencia}}\ndata: {{data}}\nresponsavel: {{nome}}",
+  },
 ];
 
 export const TEMPLATE_VARIABLES: Record<string, string[]> = {
   daily_reminder: ["{{nome}}", "{{data}}", "{{qtd}}", "{{tarefas}}"],
+  before_reminder: ["{{nome}}", "{{data}}", "{{qtd}}", "{{tarefas}}"],
+  overdue_alert: ["{{nome}}", "{{qtd}}", "{{tarefas}}"],
   weekly_digest: ["{{nome}}", "{{semana}}", "{{qtd}}", "{{tarefas}}"],
   contract_alert: ["{{qtd}}", "{{contratos}}"],
+  task_intake_template: ["{{descricao}}", "{{urgencia}}", "{{data}}", "{{nome}}"],
 };
 
 /** GET — return all templates (merged with defaults for missing rows) */

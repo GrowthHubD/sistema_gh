@@ -34,10 +34,16 @@ export async function GET(request: NextRequest) {
       .select({
         id: kanbanTask.id,
         title: kanbanTask.title,
+        description: kanbanTask.description,
         dueDate: kanbanTask.dueDate,
+        startTime: kanbanTask.startTime,
+        endTime: kanbanTask.endTime,
         priority: kanbanTask.priority,
         isCompleted: kanbanTask.isCompleted,
+        columnId: kanbanTask.columnId,
+        assignedTo: kanbanTask.assignedTo,
         assigneeName: user.name,
+        order: kanbanTask.order,
       })
       .from(kanbanTask)
       .leftJoin(user, eq(kanbanTask.assignedTo, user.id))
@@ -76,9 +82,9 @@ export async function GET(request: NextRequest) {
       // Table doesn't exist yet — needs db:push
     }
 
-    // Partners can view any team member
+    // Partners/managers can view team members; all roles get team list for assignment
     let teamUsers: { id: string; name: string }[] = [];
-    if (userRole === "partner") {
+    if (userRole === "partner" || userRole === "manager") {
       teamUsers = await db
         .select({ id: user.id, name: user.name })
         .from(user)

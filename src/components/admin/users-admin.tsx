@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Users, Shield, CheckCircle2, XCircle, ChevronDown, Save, Loader2, UserPlus, X, Eye, EyeOff } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Users, Shield, CheckCircle2, XCircle, ChevronDown, Save, Loader2, UserPlus, X, Eye, EyeOff, MessageSquare, Pencil, RotateCcw } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -42,10 +42,19 @@ interface Permission {
   canDelete: boolean;
 }
 
+interface MessageTemplate {
+  id: string;
+  label: string;
+  body: string;
+  variables: string[];
+  updatedAt: string | null;
+}
+
 interface UsersAdminProps {
   initialUsers: UserRecord[];
   initialPermissions: Permission[];
   currentUserId: string;
+  isPartner?: boolean;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -60,13 +69,66 @@ const ROLE_COLORS: Record<string, string> = {
   operational: "bg-muted/10 text-muted",
 };
 
-export function UsersAdmin({ initialUsers, initialPermissions, currentUserId }: UsersAdminProps) {
+export function UsersAdmin({ initialUsers, initialPermissions, currentUserId, isPartner = false }: UsersAdminProps) {
   const [users, setUsers] = useState(initialUsers);
   const [permissions, setPermissions] = useState(initialPermissions);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [savingPerm, setSavingPerm] = useState<string | null>(null);
+
+  // Message templates (partner only)
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
+  const [savingTemplate, setSavingTemplate] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isPartner) return;
+    setTemplatesLoading(true);
+    fetch("/api/admin/message-templates")
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((d) => {
+        setTemplates(d.templates ?? []);
+        const drafts: Record<string, string> = {};
+        (d.templates ?? []).forEach((t: MessageTemplate) => { drafts[t.id] = t.body; });
+        setTemplateDrafts(drafts);
+      })
+      .catch(() => {})
+      .finally(() => setTemplatesLoading(false));
+  }, [isPartner]);
+
+  const handleSaveTemplate = async (id: string) => {
+    setSavingTemplate(id);
+    try {
+      const res = await fetch("/api/admin/message-templates", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, templateBody: templateDrafts[id] }),
+      });
+      if (res.ok) {
+        setTemplates((prev) => prev.map((t) => t.id === id ? { ...t, body: templateDrafts[id] } : t));
+        setEditingTemplate(null);
+      }
+    } finally {
+      setSavingTemplate(null);
+    }
+  };
+
+  const handleResetTemplate = async (id: string) => {
+    await fetch(`/api/admin/message-templates?id=${id}`, { method: "DELETE" });
+    fetch("/api/admin/message-templates")
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((d) => {
+        setTemplates(d.templates ?? []);
+        const drafts: Record<string, string> = {};
+        (d.templates ?? []).forEach((t: MessageTemplate) => { drafts[t.id] = t.body; });
+        setTemplateDrafts(drafts);
+        setEditingTemplate(null);
+      })
+      .catch(() => {});
+  };
 
   // Create user modal
   const [showCreate, setShowCreate] = useState(false);
@@ -284,6 +346,97 @@ export function UsersAdmin({ initialUsers, initialPermissions, currentUserId }: 
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Message Templates section (partner only) */}
+      {isPartner && (
+        <div className="bg-surface rounded-xl border border-border overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
+            <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
+              <MessageSquare className="w-4 h-4 text-warning" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Mensagens & Alertas</h2>
+              <p className="text-xs text-muted">Personalize os textos enviados via WhatsApp.</p>
+            </div>
+          </div>
+
+          <div className="p-5">
+            {templatesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 text-primary animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {templates.map((tmpl) => (
+                  <div key={tmpl.id} className="border border-border rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-surface-2">
+                      <p className="text-sm font-medium text-foreground">{tmpl.label}</p>
+                      {editingTemplate !== tmpl.id && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleResetTemplate(tmpl.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted border border-border rounded-lg hover:bg-surface hover:text-foreground transition-colors cursor-pointer"
+                            title="Restaurar padrão"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Padrão
+                          </button>
+                          <button
+                            onClick={() => setEditingTemplate(tmpl.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted border border-border rounded-lg hover:bg-surface hover:text-foreground transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-3 h-3" /> Editar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {tmpl.variables.map((v) => (
+                          <span key={v} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded font-mono">{v}</span>
+                        ))}
+                      </div>
+                      {editingTemplate === tmpl.id ? (
+                        <>
+                          <textarea
+                            value={templateDrafts[tmpl.id] ?? tmpl.body}
+                            onChange={(e) => setTemplateDrafts((prev) => ({ ...prev, [tmpl.id]: e.target.value }))}
+                            rows={7}
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:border-primary transition-colors resize-none"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setEditingTemplate(null); setTemplateDrafts((prev) => ({ ...prev, [tmpl.id]: tmpl.body })); }}
+                              className="px-3 py-1.5 text-sm border border-border rounded-lg text-muted hover:text-foreground hover:bg-surface-2 transition-colors cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={() => handleSaveTemplate(tmpl.id)}
+                              disabled={savingTemplate === tmpl.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              {savingTemplate === tmpl.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                              Salvar
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <pre className="text-xs text-muted whitespace-pre-wrap font-mono bg-background rounded-lg p-3 leading-relaxed">
+                          {templateDrafts[tmpl.id] ?? tmpl.body}
+                        </pre>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-muted pt-1">
+                  As variáveis entre <span className="font-mono text-primary">{"{{ }}"}</span> são substituídas automaticamente no envio.
+                  Use <span className="font-mono">*texto*</span> para negrito no WhatsApp.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

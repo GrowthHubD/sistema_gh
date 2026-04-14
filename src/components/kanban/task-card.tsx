@@ -49,11 +49,13 @@ export function TaskCard({ task, onEdit, onDelete, onToggleComplete, canEdit, ca
       ref={setNodeRef}
       style={style}
       className={cn(
-        "bg-surface-2 border border-border rounded-lg p-3 group transition-all duration-300",
-        "hover:border-primary/50 hover:shadow-[0_0_15px_rgba(34,197,94,0.15)]",
+        "border rounded-lg p-3 group transition-all duration-300",
+        "hover:shadow-[0_0_15px_rgba(34,197,94,0.15)]",
         isDragging && "opacity-40",
-        task.isCompleted && "opacity-60",
-        isOverdue && "border-error/40"
+        task.isCompleted && "opacity-60 bg-surface-2 border-border",
+        !task.isCompleted && isOverdue && "bg-error/20 border-error/60 hover:border-error",
+        !task.isCompleted && !isOverdue && task.priority === "urgent" && "bg-warning/20 border-warning/60 hover:border-warning",
+        !task.isCompleted && !isOverdue && task.priority !== "urgent" && "bg-surface-2 border-border hover:border-primary/50"
       )}
     >
       <div className="flex items-start gap-2">

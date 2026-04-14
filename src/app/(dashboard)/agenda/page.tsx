@@ -1,19 +1,26 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Calendar, CheckCircle2, Circle, ExternalLink, Users, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { ChevronLeft, ChevronRight, Calendar, CheckCircle2, Circle, ExternalLink, Users, Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, getDaysInMonth, startOfMonth, getDay, isSameDay, isToday, parseISO } from "date-fns";
+import { format, getDaysInMonth, startOfMonth, getDay, isSameDay, isToday, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Link from "next/link";
+import { TaskModal } from "@/components/kanban/task-modal";
 
 interface KanbanTask {
   id: string;
   title: string;
+  description: string | null;
   dueDate: string;
+  startTime: string | null;
+  endTime: string | null;
   priority: string;
   isCompleted: boolean;
+  columnId: string;
+  assignedTo: string;
   assigneeName: string | null;
+  order: number;
 }
 
 interface GoogleEvent {
@@ -24,29 +31,69 @@ interface GoogleEvent {
   htmlLink?: string;
 }
 
-interface TeamUser {
-  id: string;
-  name: string;
+interface TeamUser { id: string; name: string; }
+interface Column { id: string; name: string; }
+
+function isOverdue(task: KanbanTask): boolean {
+  if (task.isCompleted) return false;
+  return new Date(task.dueDate + "T12:00:00") < startOfDay(new Date());
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: "bg-error/20 text-error border-l-2 border-error",
-  high: "bg-warning/10 text-warning border-l-2 border-warning",
-  medium: "bg-primary/10 text-primary border-l-2 border-primary",
-  low: "bg-surface-2 text-muted border-l-2 border-border",
-};
+function taskChipClass(task: KanbanTask): string {
+  if (isOverdue(task)) return "bg-error text-white border-l-2 border-error";
+  const map: Record<string, string> = {
+    urgent: "bg-warning text-white border-l-2 border-warning",
+    high:   "bg-warning/20 text-warning border-l-2 border-warning",
+    medium: "bg-primary/10 text-primary border-l-2 border-primary",
+    low:    "bg-surface-2 text-muted border-l-2 border-border",
+  };
+  return map[task.priority] ?? map.medium;
+}
+
+function taskPanelClass(task: KanbanTask): string {
+  if (isOverdue(task)) return "bg-error/15 text-error border-l-2 border-error";
+  const map: Record<string, string> = {
+    urgent: "bg-warning/15 text-warning border-l-2 border-warning",
+    high:   "bg-warning/10 text-warning border-l-2 border-warning",
+    medium: "bg-primary/10 text-primary border-l-2 border-primary",
+    low:    "bg-surface-2 text-muted border-l-2 border-border",
+  };
+  return map[task.priority] ?? map.medium;
+}
+
+type ModalState =
+  | { open: false }
+  | { open: true; mode: "create"; date: string }
+  | { open: true; mode: "edit"; task: KanbanTask };
 
 export default function AgendaPage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1); // 1-based
+  const [month, setMonth] = useState(now.getMonth() + 1);
   const [tasks, setTasks] = useState<KanbanTask[]>([]);
   const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([]);
   const [hasCalendar, setHasCalendar] = useState(false);
   const [teamUsers, setTeamUsers] = useState<TeamUser[]>([]);
   const [viewingUserId, setViewingUserId] = useState<string>("");
+  const [currentUserId, setCurrentUserId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [loading, setLoading] = useState(true);
+  const [columns, setColumns] = useState<Column[]>([]);
+  const [allUsers, setAllUsers] = useState<TeamUser[]>([]);
+  const [modal, setModal] = useState<ModalState>({ open: false });
+  const dragTaskId = useRef<string | null>(null);
+
+  // Fetch kanban meta (columns + users) once
+  useEffect(() => {
+    fetch("/api/kanban")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (d) {
+          setColumns(d.columns ?? []);
+          setAllUsers(d.users ?? []);
+        }
+      });
+  }, []);
 
   const fetchData = useCallback(async (y: number, m: number, uid?: string) => {
     setLoading(true);
@@ -61,15 +108,14 @@ export default function AgendaPage() {
         setHasCalendar(d.hasCalendar);
         setTeamUsers(d.teamUsers ?? []);
         setViewingUserId(d.viewingUserId);
+        if (!uid) setCurrentUserId(d.viewingUserId);
       }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchData(year, month);
-  }, [year, month, fetchData]);
+  useEffect(() => { fetchData(year, month); }, [year, month, fetchData]);
 
   const prevMonth = () => {
     if (month === 1) { setYear(y => y - 1); setMonth(12); }
@@ -81,26 +127,77 @@ export default function AgendaPage() {
     else setMonth(m => m + 1);
   };
 
-  // Build calendar grid
   const daysInMonth = getDaysInMonth(new Date(year, month - 1));
-  const firstDayOfWeek = getDay(startOfMonth(new Date(year, month - 1))); // 0=Sun
-  const leadingBlanks = (firstDayOfWeek + 6) % 7; // Convert to Mon-first
+  const firstDayOfWeek = getDay(startOfMonth(new Date(year, month - 1)));
+  const leadingBlanks = (firstDayOfWeek + 6) % 7;
 
-  const getTasksForDay = (day: number) => {
-    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return tasks.filter((t) => t.dueDate === dateStr);
-  };
+  const dateStr = (day: number) =>
+    `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-  const getGoogleEventsForDay = (day: number) => {
-    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return googleEvents.filter((e) => {
+  const getTasksForDay = (day: number) =>
+    tasks.filter((t) => t.dueDate === dateStr(day));
+
+  const getGoogleEventsForDay = (day: number) =>
+    googleEvents.filter((e) => {
       const eDate = e.start.date ?? e.start.dateTime?.slice(0, 10);
-      return eDate === dateStr;
+      return eDate === dateStr(day);
     });
-  };
 
   const selectedTasks = selectedDate ? getTasksForDay(selectedDate.getDate()) : [];
   const selectedEvents = selectedDate ? getGoogleEventsForDay(selectedDate.getDate()) : [];
+
+  // Drag-and-drop reschedule
+  const handleDrop = async (day: number) => {
+    const id = dragTaskId.current;
+    if (!id) return;
+    dragTaskId.current = null;
+    const newDate = dateStr(day);
+    const task = tasks.find((t) => t.id === id);
+    if (!task || task.dueDate === newDate) return;
+
+    // Optimistic update
+    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, dueDate: newDate } : t));
+
+    const res = await fetch(`/api/kanban/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dueDate: newDate }),
+    });
+    if (!res.ok) {
+      // Revert on failure
+      setTasks((prev) => prev.map((t) => t.id === id ? { ...t, dueDate: task.dueDate } : t));
+    }
+  };
+
+  const handleTaskSaved = (saved: Record<string, unknown>) => {
+    const t = saved as unknown as KanbanTask;
+    setTasks((prev) => {
+      const idx = prev.findIndex((x) => x.id === t.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = t;
+        return next;
+      }
+      return [...prev, t];
+    });
+  };
+
+  // Resolve modal initialData
+  const modalInitialData = modal.open
+    ? modal.mode === "edit"
+      ? {
+          id: modal.task.id,
+          title: modal.task.title,
+          description: modal.task.description ?? "",
+          columnId: modal.task.columnId,
+          assignedTo: modal.task.assignedTo,
+          dueDate: modal.task.dueDate,
+          startTime: modal.task.startTime ?? "",
+          endTime: modal.task.endTime ?? "",
+          priority: modal.task.priority as "low" | "medium" | "high" | "urgent",
+        }
+      : { dueDate: modal.date }
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -118,7 +215,7 @@ export default function AgendaPage() {
               <Users className="w-4 h-4 text-muted" />
               <select
                 value={viewingUserId}
-                onChange={(e) => fetchData(year, month, e.target.value)}
+                onChange={(e) => { setViewingUserId(e.target.value); fetchData(year, month, e.target.value); }}
                 className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer"
               >
                 {teamUsers.map((u) => (
@@ -161,14 +258,12 @@ export default function AgendaPage() {
             ))}
           </div>
 
-          {/* Loading overlay */}
           {loading && (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-6 h-6 text-primary animate-spin" />
             </div>
           )}
 
-          {/* Day cells */}
           {!loading && (
             <div className="grid grid-cols-7">
               {Array.from({ length: leadingBlanks }).map((_, i) => (
@@ -185,23 +280,44 @@ export default function AgendaPage() {
                 return (
                   <div
                     key={day}
-                    onClick={() => setSelectedDate(date)}
+                    onClick={() => {
+                      setSelectedDate(date);
+                      setModal({ open: true, mode: "create", date: dateStr(day) });
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => handleDrop(day)}
                     className={cn(
-                      "min-h-[80px] p-1.5 border-b border-r border-border/50 cursor-pointer transition-colors",
+                      "min-h-[80px] p-1.5 border-b border-r border-border/50 cursor-pointer transition-colors group",
                       isSelected ? "bg-primary/10" : "hover:bg-surface-2"
                     )}
                   >
-                    <div className={cn(
-                      "w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mb-1",
-                      isTodayDay ? "bg-primary text-white" : "text-foreground"
-                    )}>
-                      {day}
+                    <div className="flex items-start justify-between mb-1">
+                      <div className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium",
+                        isTodayDay ? "bg-primary text-white" : "text-foreground"
+                      )}>
+                        {day}
+                      </div>
+                      <Plus className="w-3.5 h-3.5 text-muted opacity-0 group-hover:opacity-60 transition-opacity shrink-0 mt-1" />
                     </div>
                     {total > 0 && (
                       <div className="space-y-0.5">
                         {dayTasks.slice(0, 2).map((t) => (
-                          <div key={t.id} className={cn("text-[10px] px-1.5 py-0.5 rounded truncate", PRIORITY_COLORS[t.priority] ?? PRIORITY_COLORS.medium)}>
-                            {t.title}
+                          <div
+                            key={t.id}
+                            draggable
+                            onDragStart={(e) => { e.stopPropagation(); dragTaskId.current = t.id; }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDate(date);
+                              setModal({ open: true, mode: "edit", task: t });
+                            }}
+                            className={cn(
+                              "text-[10px] px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity",
+                              taskChipClass(t)
+                            )}
+                          >
+                            {t.startTime ? `${t.startTime} ` : ""}{t.title}
                           </div>
                         ))}
                         {dayEvents.slice(0, total > 2 ? 1 : 2).map((e) => (
@@ -223,36 +339,59 @@ export default function AgendaPage() {
 
         {/* Day detail panel */}
         <div className="bg-surface rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground">
               {selectedDate
                 ? format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })
                 : "Selecione um dia"}
             </h3>
+            {selectedDate && (
+              <button
+                onClick={() => setModal({ open: true, mode: "create", date: dateStr(selectedDate.getDate()) })}
+                className="p-1.5 rounded-lg hover:bg-surface-2 text-muted hover:text-foreground transition-colors cursor-pointer"
+                title="Nova tarefa neste dia"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="p-4 space-y-3 overflow-y-auto max-h-[500px]">
-            {/* Kanban tasks */}
             {selectedTasks.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-muted uppercase tracking-wide mb-2">Tarefas</p>
                 <div className="space-y-2">
                   {selectedTasks.map((t) => (
-                    <div key={t.id} className={cn("p-3 rounded-lg flex items-start gap-2", PRIORITY_COLORS[t.priority] ?? "bg-surface-2 text-foreground")}>
+                    <button
+                      key={t.id}
+                      onClick={() => setModal({ open: true, mode: "edit", task: t })}
+                      className={cn(
+                        "w-full p-3 rounded-lg flex items-start gap-2 text-left cursor-pointer hover:opacity-80 transition-opacity",
+                        taskPanelClass(t)
+                      )}
+                    >
                       {t.isCompleted
                         ? <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
                         : <Circle className="w-4 h-4 shrink-0 mt-0.5 opacity-50" />}
                       <div className="min-w-0">
                         <p className={cn("text-sm font-medium truncate", t.isCompleted && "line-through opacity-60")}>{t.title}</p>
-                        {t.assigneeName && <p className="text-xs opacity-70 mt-0.5">{t.assigneeName}</p>}
+                        {(t.startTime || t.assigneeName) && (
+                          <p className="text-xs opacity-70 mt-0.5">
+                            {t.startTime && `${t.startTime}${t.endTime ? ` – ${t.endTime}` : ""}`}
+                            {t.startTime && t.assigneeName && " · "}
+                            {t.assigneeName}
+                          </p>
+                        )}
+                        {t.description && (
+                          <p className="text-xs opacity-60 mt-0.5 line-clamp-2">{t.description}</p>
+                        )}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Google Calendar events */}
             {selectedEvents.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-muted uppercase tracking-wide mb-2">Google Calendar</p>
@@ -285,11 +424,31 @@ export default function AgendaPage() {
                 <p className="text-sm text-muted">
                   {selectedDate ? "Sem eventos neste dia" : "Selecione um dia para ver os eventos"}
                 </p>
+                {selectedDate && (
+                  <button
+                    onClick={() => setModal({ open: true, mode: "create", date: dateStr(selectedDate.getDate()) })}
+                    className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted hover:text-foreground hover:bg-surface-2 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Nova tarefa
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Task modal */}
+      <TaskModal
+        open={modal.open}
+        onClose={() => setModal({ open: false })}
+        onSuccess={handleTaskSaved}
+        columns={columns}
+        users={allUsers}
+        currentUserId={currentUserId}
+        mode={modal.open ? modal.mode : "create"}
+        initialData={modalInitialData}
+      />
     </div>
   );
 }

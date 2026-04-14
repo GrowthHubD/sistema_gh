@@ -15,6 +15,8 @@ const updateSchema = z.object({
   columnId: z.string().uuid().optional(),
   assignedTo: z.string().optional(),
   dueDate: z.string().optional().nullable(),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   isCompleted: z.boolean().optional(),
   order: z.number().int().optional(),
@@ -55,6 +57,8 @@ export async function PATCH(
     if (d.columnId !== undefined) updates.columnId = d.columnId;
     if (d.assignedTo !== undefined) updates.assignedTo = d.assignedTo;
     if (d.dueDate !== undefined) updates.dueDate = d.dueDate;
+    if (d.startTime !== undefined) updates.startTime = d.startTime;
+    if (d.endTime !== undefined) updates.endTime = d.endTime;
     if (d.priority !== undefined) updates.priority = d.priority;
     if (d.order !== undefined) updates.order = d.order;
     if (d.isCompleted !== undefined) {

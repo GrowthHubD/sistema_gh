@@ -52,6 +52,8 @@ export default async function AdminUsuariosPage() {
     canDelete: p.canDelete,
   }));
 
+  const isPartner = userRole === "partner";
+
   return (
     <div className="space-y-6">
       <div>
@@ -63,6 +65,7 @@ export default async function AdminUsuariosPage() {
         initialUsers={serializedUsers}
         initialPermissions={serializedPermissions}
         currentUserId={session.user.id}
+        isPartner={isPartner}
       />
     </div>
   );
