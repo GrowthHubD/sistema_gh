@@ -134,7 +134,8 @@ export function TaskModal({ open, onClose, onSuccess, onDelete, columns, users, 
       });
       if (!res.ok) {
         const d = await res.json();
-        toast.error(d.error ?? "Erro ao salvar");
+        const msg = d.detail ? `${d.error}: ${d.detail}` : (d.error ?? "Erro ao salvar");
+        toast.error(msg);
         return;
       }
       const data = await res.json();

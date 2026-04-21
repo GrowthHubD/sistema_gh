@@ -93,9 +93,9 @@ export async function PATCH(
     }
 
     return NextResponse.json({ task: updated });
-  } catch {
-    console.error("[KANBAN] PATCH task failed:", { operation: "update" });
-    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  } catch (err) {
+    console.error("[KANBAN] PATCH task failed:", err);
+    return NextResponse.json({ error: "Erro interno", detail: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
 
@@ -140,8 +140,8 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch {
-    console.error("[KANBAN] DELETE task failed:", { operation: "delete" });
-    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  } catch (err) {
+    console.error("[KANBAN] DELETE task failed:", err);
+    return NextResponse.json({ error: "Erro interno", detail: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

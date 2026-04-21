@@ -86,8 +86,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ task }, { status: 201 });
-  } catch {
-    console.error("[KANBAN] POST task failed:", { operation: "create" });
-    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  } catch (err) {
+    console.error("[KANBAN] POST task failed:", err);
+    return NextResponse.json({ error: "Erro interno", detail: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
