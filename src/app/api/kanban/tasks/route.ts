@@ -87,7 +87,29 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ task }, { status: 201 });
   } catch (err) {
-    console.error("[KANBAN] POST task failed:", err);
-    return NextResponse.json({ error: "Erro interno", detail: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    const e = err as Record<string, unknown>;
+    const source = (e?.sourceError ?? e?.cause) as Record<string, unknown> | undefined;
+    console.error("[KANBAN] POST task failed:", {
+      message: e?.message,
+      code: e?.code ?? source?.code,
+      detail: e?.detail ?? source?.detail,
+      hint: e?.hint ?? source?.hint,
+      constraint: e?.constraint_name ?? source?.constraint,
+      column: e?.column_name ?? source?.column,
+      table: e?.table_name ?? source?.table,
+      sourceMessage: source?.message,
+      stack: e?.stack,
+    });
+    const detailText = source?.detail ?? e?.detail;
+    const codeText = source?.code ?? e?.code;
+    const constraintText = source?.constraint ?? e?.constraint_name;
+    const srcMsg = source?.message;
+    const parts = [
+      srcMsg || e?.message,
+      detailText && `detail: ${detailText}`,
+      codeText && `code: ${codeText}`,
+      constraintText && `constraint: ${constraintText}`,
+    ].filter(Boolean);
+    return NextResponse.json({ error: "Erro interno", detail: parts.join(" | ") || String(err) }, { status: 500 });
   }
 }
